@@ -1,0 +1,17 @@
+services:
+  app:
+    build: .
+    container_name: sabana_app
+    ports:
+      - "8000:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - .:/app
+    environment:
+      - SERVER_NAME=:80
+      - DATABASE_URL=postgres://szaiiidev:Lostvyne04!@host.docker.internal:5432/sabana_db
+    command: frankenphp run --config /etc/caddy/Caddyfile --watch
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    tty: true
