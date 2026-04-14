@@ -1,17 +1,35 @@
 services:
   app:
-    build: .
+    # Karena Dockerfile ada di dalam folder backend, context harus diarahkan ke sana
+    build: ./backend
     container_name: sabana_app
     ports:
       - "8000:80"
       - "443:443"
       - "443:443/udp"
     volumes:
-      - .:/app
+      - ./backend:/app
     environment:
       - SERVER_NAME=:80
       - DATABASE_URL=postgres://szaiiidev:Lostvyne04!@host.docker.internal:5432/sabana_db
+    # Command watch tetap sama seperti yang kamu gunakan sebelumnya
     command: frankenphp run --config /etc/caddy/Caddyfile --watch
     extra_hosts:
       - "host.docker.internal:host-gateway"
     tty: true
+
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.13.0
+    container_name: sabana_search
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m" # Penting agar laptop Arch-mu tidak lag
+    ports:
+      - "9200:9200"
+    volumes:
+      - ./elasticsearch_data:/usr/share/elasticsearch/data
+    deploy:
+      resources:
+        limits:
+          memory: 1G
