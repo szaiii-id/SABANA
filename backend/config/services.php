@@ -35,4 +35,11 @@ return [
         ],
     ],
 
+    'elasticsearch' => [
+        'hosts' => env('ELASTICSEARCH_HOSTS', 'http://localhost:9200'),
+    ],
+
+    'fonnte' => [
+        'token' => env('FONNTE_TOKEN'),
+    ],
 ];

@@ -8,11 +8,13 @@ services:
       - "443:443"
       - "443:443/udp"
     volumes:
+      - /etc/localtime:/etc/localtime:ro
       - ./backend:/app
     environment:
+      - TZ=UTC
+      - APP_TIMEZONE=UTC
       - SERVER_NAME=:80
       - DATABASE_URL=postgres://szaiiidev:Lostvyne04!@host.docker.internal:5432/sabana_db
-    # Command watch tetap sama seperti yang kamu gunakan sebelumnya
     command: frankenphp run --config /etc/caddy/Caddyfile --watch
     extra_hosts:
       - "host.docker.internal:host-gateway"
@@ -24,7 +26,7 @@ services:
     environment:
       - discovery.type=single-node
       - xpack.security.enabled=false
-      - "ES_JAVA_OPTS=-Xms512m -Xmx512m" # Penting agar laptop Arch-mu tidak lag
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m" 
     ports:
       - "9200:9200"
     volumes:
