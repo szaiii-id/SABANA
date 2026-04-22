@@ -29,14 +29,77 @@ class AuthService
             ]);
         }
 
-        $this->citizenRepository->update($citizen, ['last_login_at' => now()]);
+        if (!$citizen->is_verified) {
+            throw ValidationException::withMessages([
+                'is_verified' => ['Akun belum aktif. Silakan verifikasi nomor WhatsApp Anda.'],
+                'whatsapp_number' => $citizen->whatsapp_number 
+            ]);
+        }
 
-        $token = $citizen->createToken('Sabana Personal Access Client')->accessToken;
+        $this->citizenRepository->update($citizen->id, ['last_login_at' => now()]);
+
+        $token = $citizen->createToken('Sabana App Token')->plainTextToken;
 
         return [
             'user'  => $citizen,
             'token' => $token,
         ];
+    }
+
+    public function verifyRegistrationOtp(array $data): void
+    {
+        $citizen = $this->citizenRepository->findByNikAndWhatsapp($data['nik'], $data['whatsapp_number']);
+
+        if (!$citizen) {
+            throw ValidationException::withMessages(['nik' => ['Data pendaftar tidak ditemukan.']]);
+        }
+
+        if ($citizen->is_verified) {
+            throw ValidationException::withMessages(['otp' => ['Akun ini sudah terverifikasi. Silakan langsung login.']]);
+        }
+
+        if (!$citizen->temporary_pin || !Hash::check($data['otp'], $citizen->temporary_pin)) {
+            throw ValidationException::withMessages(['otp' => ['Kode OTP salah atau tidak valid.']]);
+        }
+
+        if ($this->citizenRepository->isOtpExpired($citizen)) {
+            throw ValidationException::withMessages(['otp' => ['Kode OTP telah kedaluwarsa. Silakan minta kode baru.']]);
+        }
+
+        $this->citizenRepository->update($citizen->id, [
+            'is_verified' => true,
+            'temporary_pin' => null,
+            'temporary_pin_expired_at' => null,
+        ]);
+    }
+
+    public function resendRegistrationOtp(array $data): void
+    {
+        $key = 'resend-otp:' . $data['nik'];
+
+        if (RateLimiter::tooManyAttempts($key, 3)) {
+            $minutes = ceil(RateLimiter::availableIn($key) / 60);
+            throw ValidationException::withMessages([
+                'otp' => ["Terlalu banyak permintaan. Silakan coba lagi dalam {$minutes} menit."],
+            ]);
+        }
+
+        $citizen = $this->citizenRepository->findByNikAndWhatsapp($data['nik'], $data['whatsapp_number']);
+
+        if (!$citizen || $citizen->is_verified) {
+            throw ValidationException::withMessages(['nik' => ['Akun tidak valid atau sudah aktif.']]);
+        }
+
+        RateLimiter::hit($key, 60);
+
+        $newOtp = (string) random_int(100000, 999999);
+        $this->citizenRepository->update($citizen->id, [
+            'temporary_pin' => Hash::make($newOtp),
+            'temporary_pin_expired_at' => now()->addMinutes(10),
+        ]);
+
+        $message = "*[SABANA KALSEL - KIRIM ULANG]*\n\nKode verifikasi baru Anda adalah:\n\n*{$newOtp}*\n\nBerlaku 10 menit.";
+        $this->fonnteService->sendMessage($citizen->whatsapp_number, $message);
     }
 
     public function requestOtp(array $data): string
@@ -63,7 +126,7 @@ class AuthService
 
         RateLimiter::hit($key, 1800); 
 
-        $this->citizenRepository->update($citizen, [
+        $this->citizenRepository->update($citizen->id, [
             'temporary_pin' => Hash::make($temporaryPin),
             'temporary_pin_expired_at' => Carbon::now()->addMinutes(10),
         ]);
@@ -98,9 +161,9 @@ class AuthService
             ]);
         }
 
-        $citizen->tokens()->update(['revoked' => true]); 
+        $citizen->tokens()->delete(); 
 
-        $this->citizenRepository->update($citizen, [
+        $this->citizenRepository->update($citizen->id, [
             'pin' => Hash::make($data['new_pin']),
             'temporary_pin' => null,
             'temporary_pin_expired_at' => null,
@@ -110,7 +173,7 @@ class AuthService
 
     public function logout($user): void
     {
-        $user->token()->revoke();
+        $user->currentAccessToken()->delete();
     }
 
     

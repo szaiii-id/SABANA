@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\RegisterRequest;
 use App\Services\CitizenService;
 use Illuminate\Http\JsonResponse;
+use Exception;
 
 class RegisterController extends Controller
 {
@@ -23,15 +24,19 @@ class RegisterController extends Controller
             
             return response()->json([
                 'status'  => 'success',
-                'message' => 'Warga berhasil terdaftar',
-                'data'    => $citizen
+                'message' => 'Kode verifikasi telah dikirim melalui WhatsApp.',
+                'data'    => [
+                    'nik' => $citizen->nik,
+                    'whatsapp_number' => $citizen->whatsapp_number,
+                    'full_name' => $citizen->full_name
+                ]
             ], 201);
             
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             return response()->json([
                 'status'  => 'error',
                 'message' => $e->getMessage()
-            ], 500);
+            ], 422);
         }
     }
 }

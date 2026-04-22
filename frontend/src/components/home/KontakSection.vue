@@ -1,5 +1,42 @@
 <template>
   <section id="kontak" class="py-24 relative z-10 overflow-hidden">
+    
+    <transition 
+      enter-active-class="transition duration-500 ease-out" 
+      enter-from-class="transform -translate-y-10 opacity-0" 
+      enter-to-class="transform translate-y-0 opacity-100" 
+      leave-active-class="transition duration-300 ease-in" 
+      leave-from-class="transform translate-y-0 opacity-100" 
+      leave-to-class="transform -translate-y-10 opacity-0"
+    >
+      <div v-if="toastMessage" class="fixed top-8 left-1/2 transform -translate-x-1/2 z-50 w-[90%] max-w-md">
+        <div :class="['border-l-4 p-4 rounded-r-2xl shadow-[0_15px_30px_rgba(0,0,0,0.15)] flex items-start gap-3 backdrop-blur-xl', isSuccessToast ? 'bg-green-50/95 border-green-500' : 'bg-red-50/95 border-red-500']">
+          
+          <svg v-if="isSuccessToast" class="w-6 h-6 text-green-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+          </svg>
+          <svg v-else class="w-6 h-6 text-red-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+          </svg>
+
+          <div>
+            <h3 :class="['text-[11px] font-black uppercase tracking-widest mb-1', isSuccessToast ? 'text-green-800' : 'text-red-800']">
+              {{ isSuccessToast ? 'Berhasil' : 'Pemberitahuan Keamanan' }}
+            </h3>
+            <p :class="['text-xs font-bold leading-relaxed', isSuccessToast ? 'text-green-700' : 'text-red-700']">
+              {{ toastMessage }}
+            </p>
+          </div>
+
+          <button @click="toastMessage = ''" :class="['ml-auto transition-colors p-1', isSuccessToast ? 'text-green-400 hover:text-green-600' : 'text-red-400 hover:text-red-600']">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+            </svg>
+          </button>
+        </div>
+      </div>
+    </transition>
+
     <div class="container mx-auto px-6">
       
       <div class="flex flex-col lg:flex-row lg:items-end justify-between mb-20 gap-8">
@@ -37,41 +74,82 @@
               ✉️
             </div>
             <div class="ml-8">
-              <p class="text-xl font-black text-gray-800 break-all leading-none">halo@sabana.kalsel.go.id</p>
+              <p class="text-xl font-black text-gray-800 break-all leading-none">sabana63.id@gmail.com</p>
               <p class="text-xs font-bold text-[#D4A373] mt-2 uppercase tracking-widest">Korespondensi Resmi</p>
             </div>
           </div>
         </div>
 
         <div class="lg:col-span-7 bg-white/60 backdrop-blur-2xl p-10 md:p-14 rounded-[4rem] border border-white/80 shadow-2xl relative">
-          <form @submit.prevent="kirimAspirasi" class="space-y-10">
+          <form @submit.prevent="onSubmit" class="space-y-10">
             <div class="grid grid-cols-1 md:grid-cols-2 gap-10">
-              <div class="relative">
-                <input v-model.trim="formData.nama" type="text" required placeholder=" " class="peer w-full bg-transparent border-b-2 border-gray-300 py-2 outline-none focus:border-[#2D6A4F] transition-all font-bold text-gray-800"/>
-                <label class="absolute left-0 -top-4 text-[10px] font-black text-[#2D6A4F] uppercase tracking-widest transition-all peer-placeholder-shown:text-sm peer-placeholder-shown:text-gray-400 peer-placeholder-shown:top-2 peer-focus:-top-4 peer-focus:text-[10px] peer-focus:text-[#2D6A4F]">Nama Lengkap</label>
+              
+              <div class="relative mb-2">
+                <input 
+                  v-model.trim="formData.nama" 
+                  @blur="v$.nama.$touch()"
+                  type="text" 
+                  placeholder=" " 
+                  :class="[
+                    'peer w-full bg-transparent border-b-2 py-2 outline-none transition-all font-bold text-gray-800',
+                    v$.nama.$error ? 'border-red-500 focus:border-red-500' : 'border-gray-300 focus:border-[#2D6A4F]'
+                  ]"
+                />
+                <label :class="['absolute left-0 -top-4 text-[10px] font-black uppercase tracking-widest transition-all peer-placeholder-shown:text-sm peer-placeholder-shown:top-2 peer-focus:-top-4 peer-focus:text-[10px]', v$.nama.$error ? 'text-red-500 peer-placeholder-shown:text-red-400 peer-focus:text-red-500' : 'text-[#2D6A4F] peer-placeholder-shown:text-gray-400 peer-focus:text-[#2D6A4F]']">Nama Lengkap</label>
+                <span v-if="v$.nama.$error" class="absolute -bottom-5 left-0 text-[10px] font-bold text-red-500 italic">{{ v$.nama.$errors[0].$message }}</span>
               </div>
-              <div class="relative">
-                <input v-model.trim="formData.email" type="email" required placeholder=" " class="peer w-full bg-transparent border-b-2 border-gray-300 py-2 outline-none focus:border-[#2D6A4F] transition-all font-bold text-gray-800"/>
-                <label class="absolute left-0 -top-4 text-[10px] font-black text-[#2D6A4F] uppercase tracking-widest transition-all peer-placeholder-shown:text-sm peer-placeholder-shown:text-gray-400 peer-placeholder-shown:top-2 peer-focus:-top-4 peer-focus:text-[10px] peer-focus:text-[#2D6A4F]">Alamat Email</label>
+              
+              <div class="relative mb-2">
+                <input 
+                  v-model.trim="formData.email" 
+                  @blur="v$.email.$touch()"
+                  type="email" 
+                  placeholder=" " 
+                  :class="[
+                    'peer w-full bg-transparent border-b-2 py-2 outline-none transition-all font-bold text-gray-800',
+                    v$.email.$error ? 'border-red-500 focus:border-red-500' : 'border-gray-300 focus:border-[#2D6A4F]'
+                  ]"
+                />
+                <label :class="['absolute left-0 -top-4 text-[10px] font-black uppercase tracking-widest transition-all peer-placeholder-shown:text-sm peer-placeholder-shown:top-2 peer-focus:-top-4 peer-focus:text-[10px]', v$.email.$error ? 'text-red-500 peer-placeholder-shown:text-red-400 peer-focus:text-red-500' : 'text-[#2D6A4F] peer-placeholder-shown:text-gray-400 peer-focus:text-[#2D6A4F]']">Alamat Email</label>
+                <span v-if="v$.email.$error" class="absolute -bottom-5 left-0 text-[10px] font-bold text-red-500 italic">{{ v$.email.$errors[0].$message }}</span>
               </div>
             </div>
 
-            <div class="relative">
-              <select v-model="formData.subjek" required class="peer w-full bg-transparent border-b-2 border-gray-300 py-2 outline-none focus:border-[#2D6A4F] transition-all font-black text-gray-700 appearance-none uppercase text-xs">
+            <div class="relative mb-2">
+              <select 
+                v-model="formData.subjek" 
+                @blur="v$.subjek.$touch()"
+                :class="[
+                  'peer w-full bg-transparent border-b-2 py-2 outline-none transition-all font-black text-gray-700 appearance-none uppercase text-xs',
+                  v$.subjek.$error ? 'border-red-500 text-red-500 focus:border-red-500' : 'border-gray-300 focus:border-[#2D6A4F]'
+                ]"
+              >
                 <option disabled value="">Pilih Kategori Aspirasi</option>
-                <option value="Kendala Teknis Akses">Kendala Teknis Akses</option>
-                <option value="Laporan Penyaluran">Laporan Penyaluran</option>
-                <option value="Saran Pengembangan">Saran Pengembangan</option>
+                <option value="Pengaduan Penyalahgunaan">Pengaduan Penyalahgunaan</option>
+                <option value="Laporan Kendala Penyaluran">Laporan Kendala Penyaluran</option>
+                <option value="Pertanyaan Syarat Bantuan">Pertanyaan Syarat Bantuan</option>
+                <option value="Saran & Masukan Sistem">Saran & Masukan Sistem</option>
               </select>
-              <label class="absolute left-0 -top-4 text-[10px] font-black text-[#2D6A4F] uppercase tracking-widest">Kategori</label>
+              <label :class="['absolute left-0 -top-4 text-[10px] font-black uppercase tracking-widest', v$.subjek.$error ? 'text-red-500' : 'text-[#2D6A4F]']">Kategori</label>
+              <span v-if="v$.subjek.$error" class="absolute -bottom-5 left-0 text-[10px] font-bold text-red-500 italic">{{ v$.subjek.$errors[0].$message }}</span>
             </div>
 
-            <div class="relative">
-              <textarea v-model.trim="formData.pesan" required rows="3" placeholder=" " class="peer w-full bg-transparent border-b-2 border-gray-300 py-2 outline-none focus:border-[#2D6A4F] transition-all font-bold text-gray-800 resize-none"></textarea>
-              <label class="absolute left-0 -top-4 text-[10px] font-black text-[#2D6A4F] uppercase tracking-widest transition-all peer-placeholder-shown:text-sm peer-placeholder-shown:text-gray-400 peer-placeholder-shown:top-2 peer-focus:-top-4 peer-focus:text-[10px] peer-focus:text-[#2D6A4F]">Pesan Anda</label>
+            <div class="relative mb-2">
+              <textarea 
+                v-model.trim="formData.pesan" 
+                @blur="v$.pesan.$touch()"
+                rows="3" 
+                placeholder=" " 
+                :class="[
+                  'peer w-full bg-transparent border-b-2 py-2 outline-none transition-all font-bold text-gray-800 resize-none',
+                  v$.pesan.$error ? 'border-red-500 focus:border-red-500' : 'border-gray-300 focus:border-[#2D6A4F]'
+                ]"
+              ></textarea>
+              <label :class="['absolute left-0 -top-4 text-[10px] font-black uppercase tracking-widest transition-all peer-placeholder-shown:text-sm peer-placeholder-shown:top-2 peer-focus:-top-4 peer-focus:text-[10px]', v$.pesan.$error ? 'text-red-500 peer-placeholder-shown:text-red-400 peer-focus:text-red-500' : 'text-[#2D6A4F] peer-placeholder-shown:text-gray-400 peer-focus:text-[#2D6A4F]']">Pesan Anda</label>
+              <span v-if="v$.pesan.$error" class="absolute -bottom-5 left-0 text-[10px] font-bold text-red-500 italic">{{ v$.pesan.$errors[0].$message }}</span>
             </div>
 
-            <button :disabled="isSubmitting" type="submit" class="group flex items-center justify-between w-full p-2 bg-[#2D6A4F] rounded-3xl overflow-hidden hover:bg-[#1b4332] transition-all duration-300 shadow-xl shadow-[#2D6A4F]/20 active:scale-95 disabled:opacity-70 disabled:cursor-not-allowed">
+            <button :disabled="isSubmitting" type="submit" class="group flex items-center justify-between w-full p-2 bg-[#2D6A4F] rounded-3xl overflow-hidden hover:bg-[#1b4332] transition-all duration-300 shadow-xl shadow-[#2D6A4F]/20 active:scale-95 disabled:opacity-70 disabled:cursor-not-allowed mt-6">
               <span class="ml-10 text-white font-black uppercase tracking-[0.2em] italic text-sm">
                 {{ isSubmitting ? 'MENGIRIM...' : 'KIRIM ASPIRASI' }}
               </span>
@@ -85,10 +163,6 @@
                 </svg>
               </div>
             </button>
-
-            <div v-if="submitStatus" :class="submitStatus === 'success' ? 'text-green-600' : 'text-red-600'" class="text-xs font-black uppercase tracking-widest text-center mt-4 transition-all duration-300">
-              {{ submitMessage }}
-            </div>
             
           </form>
         </div>
@@ -99,8 +173,14 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue';
-import AspirasiService, { type AspirasiPayload } from '../../services/AspirasiService';
+import { ref, computed } from 'vue';
+import { useVuelidate } from '@vuelidate/core';
+// Import minLength di sini
+import { required, email, minLength, helpers } from '@vuelidate/validators'; 
+import type { AspirasiPayload } from '../../types/aspirasi';
+import { useAspirasi } from '../../composables/useAspirasi';
+
+const { isSubmitting, submitStatus, submitMessage, kirimAspirasiData } = useAspirasi();
 
 const formData = ref<AspirasiPayload>({
   nama: '',
@@ -109,41 +189,56 @@ const formData = ref<AspirasiPayload>({
   pesan: ''
 });
 
-const isSubmitting = ref(false);
-const submitStatus = ref<'success' | 'error' | ''>('');
-const submitMessage = ref('');
+const toastMessage = ref('');
+const isSuccessToast = ref(false);
 
-const kirimAspirasi = async () => {
-  isSubmitting.value = true;
-  submitStatus.value = '';
+const showToast = (status: 'success' | 'error', rawMessage: string) => {
+  isSuccessToast.value = status === 'success';
   
-  try {
-    const response = await AspirasiService.kirimAspirasi(formData.value);
-    
-    submitStatus.value = 'success';
-    submitMessage.value = response.data.message || 'Aspirasi berhasil dikirim ke sistem SABANA';
-    
-    formData.value = {
-      nama: '',
-      email: '',
-      subjek: '',
-      pesan: ''
-    };
-    
-  } catch (error: any) {
-    submitStatus.value = 'error';
-    
-    if (error.response?.data?.message) {
-      submitMessage.value = error.response.data.message;
+  if (status === 'error') {
+    const err = rawMessage.toLowerCase();
+    if (err.includes('sql') || err.includes('exception') || err.includes('typeerror') || err.includes('server error') || err.includes('undefined') || rawMessage.length > 80) {
+      toastMessage.value = 'Layanan sedang sibuk atau terjadi gangguan sistem. Silakan coba beberapa saat lagi.';
     } else {
-      submitMessage.value = 'Gagal mengirim pesan. Pastikan server terhubung.';
+      toastMessage.value = rawMessage || 'Terjadi kesalahan saat memproses permintaan.';
     }
-  } finally {
-    isSubmitting.value = false;
-    
-    setTimeout(() => {
-      submitStatus.value = '';
-    }, 5000);
+  } else {
+    toastMessage.value = rawMessage || 'Data berhasil dikirim.';
+  }
+
+  setTimeout(() => {
+    toastMessage.value = '';
+  }, 10000);
+};
+
+const wajibIsi = helpers.withMessage('Bagian ini tidak boleh kosong', required);
+const formatEmail = helpers.withMessage('Format email tidak valid (contoh: budi@gmail.com)', email);
+// Tambahkan pesan custom untuk minimal karakter
+const minimalPesan = helpers.withMessage('Pesan terlalu singkat (minimal 10 karakter)', minLength(10));
+
+const rules = computed(() => ({
+  nama: { required: wajibIsi },
+  email: { required: wajibIsi, email: formatEmail },
+  subjek: { required: wajibIsi },
+  // Terapkan aturan minimalPesan ke field pesan
+  pesan: { required: wajibIsi, minLength: minimalPesan } 
+}));
+
+const v$ = useVuelidate(rules, formData);
+
+const onSubmit = async () => {
+  const isFormValid = await v$.value.$validate();
+  
+  if (!isFormValid) return;
+
+  const isSuccess = await kirimAspirasiData(formData.value);
+  
+  if (isSuccess) {
+    showToast('success', submitMessage.value || 'Aspirasi Anda berhasil dikirim!');
+    formData.value = { nama: '', email: '', subjek: '', pesan: '' };
+    v$.value.$reset();
+  } else {
+    showToast('error', submitMessage.value || 'Gagal mengirim aspirasi.');
   }
 };
 </script>

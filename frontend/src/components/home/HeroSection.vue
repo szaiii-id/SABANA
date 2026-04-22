@@ -27,16 +27,10 @@
 
           <div class="flex flex-col sm:flex-row items-center gap-4 w-full sm:w-auto">
             <router-link 
-              to="/register" 
-              class="group relative flex items-center justify-center gap-4 w-full sm:w-auto px-10 py-5 bg-[#2D6A4F] text-white rounded-full overflow-hidden shadow-2xl shadow-[#2D6A4F]/30 hover:bg-[#1b4332] hover:-translate-y-1 transition-all duration-300 active:scale-95"
-            >
-              <span class="font-black uppercase tracking-widest text-sm italic z-10">Daftar Sekarang</span>
-              <div class="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center z-10 group-hover:translate-x-1 transition-transform">
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="3" stroke="currentColor" class="w-5 h-5">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
-                </svg>
-              </div>
-              <div class="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:animate-[shimmer_1.5s_infinite]"></div>
+            :to="{ name: 'register' }" 
+            class="group relative flex items-center justify-center gap-4 w-full sm:w-auto px-10 py-5 bg-[#2D6A4F] text-white rounded-full overflow-hidden shadow-2xl shadow-[#2D6A4F]/30 hover:bg-[#1b4332] hover:-translate-y-1 transition-all duration-300 active:scale-95"
+          >
+            <span class="font-black uppercase tracking-widest text-sm italic z-10">Daftar Sekarang</span>
             </router-link>
 
             <a 

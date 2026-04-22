@@ -41,7 +41,7 @@
       </div>
 
       <router-link 
-        to="/login" 
+        :to="{ name: 'login' }" 
         :class="[
           'px-6 py-2 text-sm font-bold rounded-full transition-all duration-300 shadow-md active:scale-95',
           isScrolled 

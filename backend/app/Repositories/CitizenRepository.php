@@ -24,9 +24,11 @@ class CitizenRepository implements CitizenRepositoryInterface
                       ->first();
     }
     
-    public function update(Citizen $citizen, array $data): bool
+    public function update($id, array $data)
     {
-        return $citizen->update($data);
+        $citizen = Citizen::findOrFail($id);
+        $citizen->update($data);
+        return $citizen;
     }
 
     public function isOtpExpired(Citizen $citizen): bool

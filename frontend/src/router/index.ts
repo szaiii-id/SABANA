@@ -3,6 +3,7 @@ import { createRouter, createWebHistory } from 'vue-router'
 const router = createRouter({
   history: createWebHistory(),
   routes: [
+    // 1. PUBLIC ROUTES
     {
       path: '/',
       component: () => import('../layouts/LandingLayout.vue'),
@@ -11,16 +12,66 @@ const router = createRouter({
           path: '',
           name: 'home',
           component: () => import('../pages/public/Home.vue')
-        },
-        // Tambahkan rute public lainnya di sini
+        }
       ]
     },
+
+    // 2. AUTH ROUTES 
     {
       path: '/login',
       name: 'login',
-      component: () => import('../pages/auth/Login.vue')
+      component: () => import('../pages/auth/Login.vue'),
+    },
+    {
+      path: '/register',
+      name: 'register',
+      component: () => import('../pages/auth/Register.vue')
+    },
+    {
+      path: '/verify-otp',
+      name: 'verify-otp',
+      component: () => import('../pages/auth/VerifyOtp.vue')
+    },
+    {
+      path: '/forgot-pin',
+      name: 'forgot-pin', 
+      component: () => import('../pages/auth/ForgotPin.vue')
+    },
+    {
+      path: '/reset-pin',
+      name: 'reset-pin',
+      component: () => import('../pages/auth/ResetPin.vue')
+    },
+
+    // 3. PROTECTED ROUTES
+    {
+      path: '/dashboard',
+      component: () => import('../layouts/DashboardLayout.vue'), 
+      meta: { requiresAuth: true }, 
+      children: [
+        {
+          path: '',
+          name: 'dashboard.home',
+          component: () => import('../pages/dashboard/Home.vue')
+        }
+      ]
     }
   ]
 })
+
+router.beforeEach((to, from, next) => {
+  const token = localStorage.getItem('token');
+  const isAuthenticated = !!token;
+
+  if (to.meta.requiresAuth && !isAuthenticated) {
+    next({ name: 'login' });
+  } 
+  else if ((to.name === 'login' || to.name === 'register') && isAuthenticated) {
+    next({ name: 'dashboard.home' });
+  }
+  else {
+    next();
+  }
+});
 
 export default router

@@ -5,7 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
-use Laravel\Passport\HasApiTokens;
+use Laravel\Sanctum\HasApiTokens;
 
 class Citizen extends Authenticatable
 {
@@ -20,6 +20,7 @@ class Citizen extends Authenticatable
         'temporary_pin',
         'temporary_pin_expired_at',
         'last_login_at',
+        'is_verified',
     ];
 
     protected $hidden = [
@@ -32,8 +33,5 @@ class Citizen extends Authenticatable
         'last_login_at' => 'datetime',
     ];
 
-    public function validateForPassportPasswordGrant($pin)
-    {
-        return \Hash::check($pin, $this->pin);
-    }
+
 }
