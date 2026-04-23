@@ -22,7 +22,7 @@ Route::prefix('v1')->as('api.v1.')->group(function () {
         Route::post('/reset-pin', [ForgotPinController::class, 'resetPin'])->name('reset-pin');
     });
 
-    Route::middleware('auth:sactum')->group(function () {
+    Route::middleware('auth:sanctum')->group(function () {
 
         Route::post('/auth/logout', LogoutController::class)->name('auth.logout');
 
@@ -31,3 +31,5 @@ Route::prefix('v1')->as('api.v1.')->group(function () {
         })->name('user');
     });
 });
+
+// woi bisa kada

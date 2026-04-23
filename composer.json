@@ -1,3 +1,7 @@
 {
 
+    "require-dev": {
+        "pestphp/pest": "*",
+        "pestphp/pest-plugin-laravel": "*"
+    }
 }

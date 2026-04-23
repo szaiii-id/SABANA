@@ -37,6 +37,8 @@ return [
 
     'elasticsearch' => [
         'hosts' => env('ELASTICSEARCH_HOSTS', 'http://localhost:9200'),
+        'user' => env('ELASTICSEARCH_USERNAME', 'elastic'),
+        'pass' => env('ELASTICSEARCH_PASSWORD'),
     ],
 
     'fonnte' => [
