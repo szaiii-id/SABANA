@@ -31,9 +31,10 @@ services:
       - REDIS_PASSWORD=${REDIS_PASSWORD}
       - SERVER_NAME=:80
       - CADDY_GLOBAL_OPTIONS="auto_https disable_redirects"
+      - CHOKIDAR_USEPOLLING=true
     env_file:
       - ./backend/.env
-    command: frankenphp run --config /etc/caddy/Caddyfile --watch
+    command: php artisan octane:start --server=frankenphp --host=0.0.0.0 --port=80 --admin-port=2019 --watch --poll
     restart: unless-stopped
 
   postgres:

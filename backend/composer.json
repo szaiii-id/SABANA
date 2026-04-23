@@ -12,6 +12,7 @@
         "php": "^8.3",
         "elasticsearch/elasticsearch": "^9.3",
         "laravel/framework": "^13.0",
+        "laravel/octane": "^2.17",
         "laravel/sanctum": "^4.0",
         "laravel/tinker": "^3.0",
         "symfony/brevo-mailer": "*"
@@ -23,6 +24,8 @@
         "laravel/pint": "^1.27",
         "mockery/mockery": "^1.6",
         "nunomaduro/collision": "^8.6",
+        "pestphp/pest": "^4.6",
+        "pestphp/pest-plugin-laravel": "^4.1",
         "phpunit/phpunit": "^12.5.12"
     },
     "autoload": {

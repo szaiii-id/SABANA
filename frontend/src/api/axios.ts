@@ -10,7 +10,6 @@ const api = axios.create({
   timeout: 10000, 
 });
 
-// Interceptor Request: Menyuntikkan token otomatis ke setiap request
 api.interceptors.request.use((config: InternalAxiosRequestConfig) => {
   const token = localStorage.getItem('token');
   if (token && config.headers) {
@@ -19,16 +18,30 @@ api.interceptors.request.use((config: InternalAxiosRequestConfig) => {
   return config;
 });
 
-// Interceptor Response: Menangani jika token expired/ditolak
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    // Jika backend menolak token (Unauthorized)
-    if (error.response?.status === 401) {
+    if (!error.response) {
+      error.message = 'Koneksi terputus. Periksa jaringan internet Anda.';
+      return Promise.reject(error);
+    }
+
+    const status = error.response.status;
+
+    if (status === 401) {
       localStorage.removeItem('token');
       localStorage.removeItem('user');
       window.location.href = '/login';
+    } 
+    
+    else if (status >= 500) {
+      error.response.data.message = 'Server SABANA sedang dalam perawatan atau mengalami gangguan. Mohon coba lagi nanti.';
+    } 
+    
+    else if (status === 403) {
+      error.response.data.message = 'Anda tidak memiliki akses untuk melakukan tindakan ini.';
     }
+
     return Promise.reject(error);
   }
 );

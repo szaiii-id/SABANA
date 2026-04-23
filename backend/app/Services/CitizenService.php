@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Contracts\SearchEngineInterface;
 use App\Repositories\Contracts\CitizenRepositoryInterface;
 use Elastic\Elasticsearch\Client;
 use Illuminate\Support\Facades\Hash;
@@ -15,7 +16,7 @@ class CitizenService
     protected $elasticsearch;
     protected $fonnteService; 
 
-    public function __construct(CitizenRepositoryInterface $citizenRepository, Client $elasticsearch, FonnteService $fonnteService)
+    public function __construct(CitizenRepositoryInterface $citizenRepository, SearchEngineInterface $elasticsearch, FonnteService $fonnteService)
     {
         $this->citizenRepository = $citizenRepository;
         $this->elasticsearch = $elasticsearch;
