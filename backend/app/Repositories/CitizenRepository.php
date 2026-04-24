@@ -36,4 +36,9 @@ class CitizenRepository implements CitizenRepositoryInterface
         return now()->greaterThan($citizen->temporary_pin_expired_at);
     }
 
+    public function updatePin(Citizen $citizen, string $hashedPin): bool
+    {
+        return $citizen->update(['pin' => $hashedPin]);
+    }
+
 }

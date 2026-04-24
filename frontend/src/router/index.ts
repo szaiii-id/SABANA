@@ -53,7 +53,23 @@ const router = createRouter({
           path: '',
           name: 'dashboard.home',
           component: () => import('../pages/dashboard/Home.vue')
-        }
+        },
+        {
+          path: '/security',
+          name: 'security',
+          component: () => import('../pages/dashboard/Security.vue')
+        },
+        {
+          path: '/profile',
+          name: 'profile',
+          component: () => import('../pages/dashboard/Profile.vue')
+        },
+        {
+          path: '/report',
+          name: 'report',
+          component: () => import('../pages/dashboard/Report.vue')
+        },
+        
       ]
     }
   ]

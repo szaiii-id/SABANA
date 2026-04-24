@@ -79,8 +79,6 @@ onMounted(() => {
       const parsedUser = JSON.parse(userData);
       const fullName = parsedUser.full_name || parsedUser.name || 'Warga';
       
-      // Mengambil kata pertama dari nama agar terasa lebih personal dan akrab
-      // Misal: "AKHMAD JAINUDIN" menjadi "AKHMAD"
       firstName.value = fullName.split(' ')[0]; 
     } catch (error) {
       firstName.value = 'Warga';

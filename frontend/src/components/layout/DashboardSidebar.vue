@@ -30,9 +30,9 @@ const isActive = (path: string) => route.path === path;
 
 const menuItems = [
   { name: 'Beranda', path: '/dashboard', icon: Squares2X2Icon },
-  { name: 'Daftar Bantuan', path: '/dashboard/programs', icon: DocumentPlusIcon },
-  { name: 'Lapor Warga', path: '/dashboard/report', icon: ChatBubbleBottomCenterTextIcon },
-  { name: 'Data Saya', path: '/dashboard/profile', icon: UserCircleIcon },
-  { name: 'Keamanan PIN', path: '/dashboard/security', icon: ShieldCheckIcon },
+  { name: 'Daftar Bantuan', path: '/programs', icon: DocumentPlusIcon },
+  { name: 'Lapor Warga', path: '/report', icon: ChatBubbleBottomCenterTextIcon },
+  { name: 'Data Saya', path: '/profile', icon: UserCircleIcon },
+  { name: 'Keamanan PIN', path: '/security', icon: ShieldCheckIcon },
 ];
 </script>
