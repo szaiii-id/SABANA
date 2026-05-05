@@ -6,9 +6,12 @@ use App\Http\Controllers\Api\Auth\ForgotPinController;
 use App\Http\Controllers\Api\Auth\LoginController;
 use App\Http\Controllers\Api\Auth\LogoutController;
 use App\Http\Controllers\Api\Auth\RegisterController;
+use App\Http\Controllers\Api\Citizen\AssistanceController;
+use App\Http\Controllers\Api\Citizen\AssistanceProgramController;
 use App\Http\Controllers\Api\Citizen\ProfileController;
 use App\Http\Controllers\Api\Citizen\ReportController;
 use App\Http\Controllers\Api\Citizen\SecurityController;
+use App\Http\Controllers\Api\RegionController;
 
 Route::prefix('v1')->as('api.v1.')->group(function () {
 
@@ -32,6 +35,20 @@ Route::prefix('v1')->as('api.v1.')->group(function () {
             Route::post('/whatsapp', [ReportController::class, 'whatsapp']);
             Route::post('/email', [ReportController::class, 'email']);
         });
+        Route::prefix('regions')->group(function () {
+            Route::get('/regencies', [RegionController::class, 'regencies']);
+            Route::get('/districts', [RegionController::class, 'districts']);
+            Route::get('/villages', [RegionController::class, 'villages']);
+        });
+        Route::get('/assistance-categories', [AssistanceProgramController::class, 'index']);
+        Route::post('/assistance/submit', [AssistanceController::class, 'store']); 
+        Route::get('/assistance/submissions', [AssistanceController::class, 'history']);
+        Route::get('/assistance/submissions/{id}/download', [AssistanceController::class, 'downloadReceipt']);
+        Route::get('/assistance/submissions/{id}', [AssistanceController::class, 'showById']);
+        Route::put('/assistance/submissions/{id}', [AssistanceController::class, 'update']);
+        Route::get('/assistance/{registration_number}', [AssistanceController::class, 'show']);
+        Route::delete('/assistance/{registration_number}', [AssistanceController::class, 'destroy']); 
+
         Route::get('/profile', [ProfileController::class, 'show']);
         Route::put('/profile', [ProfileController::class, 'update']);
         Route::put('/security/pin', [SecurityController::class, 'updatePin']);

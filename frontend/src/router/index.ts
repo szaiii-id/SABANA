@@ -69,13 +69,33 @@ const router = createRouter({
           name: 'report',
           component: () => import('../pages/dashboard/Report.vue')
         },
+        {
+          path: '/assistance',
+          name: 'assistance',
+          component: () => import('../pages/dashboard/Assistance.vue')
+        },
+        {
+          path: '/history',
+          name: 'history',
+          component: () => import('../pages/dashboard/History.vue')
+        },
+        {
+          path: '/assistance/edit/:id', 
+          name: 'assistance.edit',
+          component: () => import('../pages/dashboard/AssistanceEdit.vue')
+        },
+        {
+          path: '/assistance/detail/:id',
+          name: 'assistance.detail',
+          component: () => import('../pages/dashboard/AssistanceDetail.vue')
+        },
         
       ]
     }
   ]
 })
 
-router.beforeEach((to, from, next) => {
+router.beforeEach((to, _from, next) => {
   const token = localStorage.getItem('token');
   const isAuthenticated = !!token;
 

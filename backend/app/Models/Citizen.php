@@ -2,14 +2,16 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
+use Laravel\Scout\Searchable;
 
 class Citizen extends Authenticatable
 {
-    use HasApiTokens, HasFactory, Notifiable;
+    use HasApiTokens, HasFactory, Notifiable, Searchable, HasUuids;
 
     protected $fillable = [
         'nik',
@@ -33,5 +35,16 @@ class Citizen extends Authenticatable
         'last_login_at' => 'datetime',
     ];
 
+    /**
+     * Relasi: Warga ini punya riwayat pengajuan bantuan apa saja?
+     */
+    public function assistanceSubmissions()
+    {
+        return $this->hasMany(AssistanceSubmission::class, 'citizen_id');
+    }
+
+    public function syncWithSearchUsingQueue() {
+        return true; 
+    }
 
 }

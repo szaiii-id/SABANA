@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\Auth;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\RegisterRequest;
+use App\Http\Resources\CitizenResource;
 use App\Services\CitizenService;
 use Illuminate\Http\JsonResponse;
 use Exception;
@@ -25,11 +26,7 @@ class RegisterController extends Controller
             return response()->json([
                 'status'  => 'success',
                 'message' => 'Kode verifikasi telah dikirim melalui WhatsApp.',
-                'data'    => [
-                    'nik' => $citizen->nik,
-                    'whatsapp_number' => $citizen->whatsapp_number,
-                    'full_name' => $citizen->full_name
-                ]
+                'data'    => new CitizenResource($citizen)
             ], 201);
             
         } catch (Exception $e) {

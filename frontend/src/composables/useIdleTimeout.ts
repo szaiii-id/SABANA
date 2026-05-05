@@ -1,10 +1,8 @@
 import { onMounted, onUnmounted } from 'vue';
 import { useAuth } from './useAuth';
-import { useRouter } from 'vue-router';
 
 export function useIdleTimeout(timeoutMinutes = 3) {
   const { handleLogout } = useAuth();
-  const router = useRouter();
   let timeoutId: ReturnType<typeof setTimeout>;
   
   const timeoutMs = timeoutMinutes * 60 * 1000; 

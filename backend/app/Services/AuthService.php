@@ -1,6 +1,7 @@
 <?php
 namespace App\Services;
 
+use App\Jobs\SendWhatsAppJob;
 use App\Repositories\Contracts\CitizenRepositoryInterface;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\ValidationException;
@@ -11,12 +12,10 @@ use Illuminate\Support\Facades\RateLimiter;
 class AuthService
 {
     protected CitizenRepositoryInterface $citizenRepository;
-    protected FonnteService $fonnteService;
 
-    public function __construct(CitizenRepositoryInterface $citizenRepository, FonnteService $fonnteService)
+    public function __construct(CitizenRepositoryInterface $citizenRepository)
     {
         $this->citizenRepository = $citizenRepository;
-        $this->fonnteService = $fonnteService;
     }
 
     public function login(array $credentials): array
@@ -99,7 +98,7 @@ class AuthService
         ]);
 
         $message = "*[SABANA KALSEL - KIRIM ULANG]*\n\nKode verifikasi baru Anda adalah:\n\n*{$newOtp}*\n\nBerlaku 10 menit.";
-        $this->fonnteService->sendMessage($citizen->whatsapp_number, $message);
+        SendWhatsAppJob::dispatch($citizen->whatsapp_number, $message);
     }
 
     public function requestOtp(array $data): string
@@ -132,7 +131,7 @@ class AuthService
         ]);
 
         $message = "Hallo {$citizen->full_name}, ini adalah PIN sementara Anda untuk reset PIN di aplikasi Sabana: {$temporaryPin}. PIN ini berlaku selama 10 menit. Jangan bagikan PIN ini kepada siapapun.";
-        $this->fonnteService->sendMessage($citizen->whatsapp_number, $message);
+        SendWhatsAppJob::dispatch($citizen->whatsapp_number, $message);
 
         return $temporaryPin;
 
