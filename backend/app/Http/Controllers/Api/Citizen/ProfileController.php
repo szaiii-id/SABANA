@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\Citizen;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Citizen\UpdateProfileRequest;
+use App\Http\Resources\CitizenResource;
 use App\Services\CitizenProfileService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -12,17 +13,9 @@ class ProfileController extends Controller
 {
     public function __construct(private CitizenProfileService $citizenProfileService) {}
 
-    public function show(Request $request): JsonResponse
-    {
-        $citizen = $request->user();
-
+    public function show(Request $request): JsonResponse {
         return response()->json([
-            'data' => [
-                'nik' => $citizen->nik,
-                'family_card_number' => $citizen->family_card_number,
-                'full_name' => $citizen->full_name,
-                'whatsapp_number' => $citizen->whatsapp_number,
-            ]
+            'data' => new CitizenResource($request->user())
         ]);
     }
 
