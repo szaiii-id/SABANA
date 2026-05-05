@@ -209,11 +209,12 @@ const handleSubmit = async () => {
     notification.type = 'error';
     if (err.response?.status === 422) {
       const serverErrors = err.response.data.errors;
-      // Menangani error validasi dari server
-      if (serverErrors.subjek) errors.subjek = serverErrors.subjek[0];
-      if (serverErrors.pesan) errors.pesan = serverErrors.pesan[0];
-      if (serverErrors.email) errors.email = serverErrors.email[0];
-      notification.message = 'Validasi gagal.';
+      if (serverErrors) {
+        if (serverErrors.subjek) errors.subjek = serverErrors.subjek[0];
+        if (serverErrors.pesan) errors.pesan = serverErrors.pesan[0];
+        if (serverErrors.email) errors.email = serverErrors.email[0];
+      }
+      notification.message = err.response?.data?.message || 'Validasi gagal.';
     } else {
       notification.message = 'Gagal mengirim laporan.';
     }

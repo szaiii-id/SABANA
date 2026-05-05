@@ -180,7 +180,7 @@ import { required, email, minLength, helpers } from '@vuelidate/validators';
 import type { AspirasiPayload } from '../../types/aspirasi';
 import { useAspirasi } from '../../composables/useAspirasi';
 
-const { isSubmitting, submitStatus, submitMessage, kirimAspirasiData } = useAspirasi();
+const { isSubmitting, submitMessage, kirimAspirasiData } = useAspirasi();
 
 const formData = ref<AspirasiPayload>({
   nama: '',

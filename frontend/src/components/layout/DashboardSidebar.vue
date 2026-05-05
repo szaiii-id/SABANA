@@ -20,6 +20,7 @@ import { useRoute } from 'vue-router';
 import { 
   Squares2X2Icon, 
   DocumentPlusIcon, 
+  ClipboardDocumentListIcon, // Icon baru
   UserCircleIcon, 
   ChatBubbleBottomCenterTextIcon,
   ShieldCheckIcon 
@@ -30,7 +31,8 @@ const isActive = (path: string) => route.path === path;
 
 const menuItems = [
   { name: 'Beranda', path: '/dashboard', icon: Squares2X2Icon },
-  { name: 'Daftar Bantuan', path: '/programs', icon: DocumentPlusIcon },
+  { name: 'Daftar Bantuan', path: '/assistance', icon: DocumentPlusIcon },
+  { name: 'Riwayat Bantuan', path: '/history', icon: ClipboardDocumentListIcon }, // Tambahkan ini
   { name: 'Lapor Warga', path: '/report', icon: ChatBubbleBottomCenterTextIcon },
   { name: 'Data Saya', path: '/profile', icon: UserCircleIcon },
   { name: 'Keamanan PIN', path: '/security', icon: ShieldCheckIcon },
