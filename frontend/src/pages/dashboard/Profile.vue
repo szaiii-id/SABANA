@@ -187,31 +187,57 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, ref, onMounted } from 'vue';
+import { reactive, ref, onMounted, inject } from 'vue';
 import { profileApi } from '../../api/profileApi';
 
+// ===== TYPES =====
+interface ProfileData {
+  nik: string;
+  family_card_number: string;
+  full_name: string;
+  whatsapp_number: string;
+}
+
+interface ApiError {
+  response?: {
+    status?: number;
+    data?: {
+      message?: string;
+      errors?: Record<string, string[]>;
+    };
+  };
+}
+
+type FormField = 'full_name' | 'whatsapp_number';
+
+// ===== STATE =====
 const formData = reactive({
   nik: '',
   family_card_number: '',
   full_name: '',
-  whatsapp_number: ''
+  whatsapp_number: '',
 });
 
 const errors = reactive({
   full_name: '',
-  whatsapp_number: ''
+  whatsapp_number: '',
 });
 
 const notification = reactive({
-  type: '', 
-  message: ''
+  type: '' as string,
+  message: '',
 });
 
 const isLoadingData = ref(true);
 const isSubmitting = ref(false);
 const showConfirmModal = ref(false);
+const originalData = ref<ProfileData | null>(null);
 
-const fetchProfile = async () => {
+// ===== INJECT: Update nama di header =====
+const updateFirstName = inject<(name: string) => void>('updateFirstName');
+
+// ===== FETCH =====
+const fetchProfile = async (): Promise<void> => {
   isLoadingData.value = true;
   try {
     const data = await profileApi.getProfile();
@@ -219,7 +245,8 @@ const fetchProfile = async () => {
     formData.family_card_number = data.family_card_number;
     formData.full_name = data.full_name;
     formData.whatsapp_number = data.whatsapp_number;
-  } catch (error) {
+    originalData.value = { ...data };
+  } catch {
     notification.type = 'error';
     notification.message = 'Gagal memuat data profil. Silakan muat ulang halaman.';
   } finally {
@@ -231,24 +258,25 @@ onMounted(() => {
   fetchProfile();
 });
 
-const clearError = (field: keyof typeof errors) => {
+// ===== HELPERS =====
+const clearError = (field: FormField): void => {
   errors[field] = '';
   notification.message = '';
 };
 
-const filterPhone = () => {
+const filterPhone = (): void => {
   formData.whatsapp_number = formData.whatsapp_number.replace(/\D/g, '');
   clearError('whatsapp_number');
 };
 
-const validateForm = () => {
+const validateForm = (): boolean => {
   let isValid = true;
-  
+
   if (!formData.full_name.trim()) {
     errors.full_name = 'Nama lengkap wajib diisi';
     isValid = false;
   }
-  
+
   if (!formData.whatsapp_number || formData.whatsapp_number.length < 10) {
     errors.whatsapp_number = 'Nomor WhatsApp tidak valid (minimal 10 angka)';
     isValid = false;
@@ -257,52 +285,72 @@ const validateForm = () => {
   return isValid;
 };
 
-const handlePreSubmit = () => {
+// ===== SUBMIT =====
+const handlePreSubmit = (): void => {
   if (validateForm()) {
     showConfirmModal.value = true;
   }
 };
 
-const executeSubmit = async () => {
+const executeSubmit = async (): Promise<void> => {
   showConfirmModal.value = false;
   isSubmitting.value = true;
   notification.message = '';
-  
+
   try {
-    const payload = {
-      full_name: formData.full_name,
-      whatsapp_number: formData.whatsapp_number
-    };
-    
+    const payload: Partial<ProfileData> = {};
+
+    if (formData.full_name !== originalData.value?.full_name) {
+      payload.full_name = formData.full_name;
+    }
+
+    const currentPhone = formData.whatsapp_number.replace(/\D/g, '').replace(/^0+/, '');
+    const originalPhone = originalData.value?.whatsapp_number.replace(/\D/g, '').replace(/^0+/, '');
+
+    if (currentPhone !== originalPhone) {
+      payload.whatsapp_number = formData.whatsapp_number;
+    }
+
+    if (Object.keys(payload).length === 0) {
+      notification.type = 'success';
+      notification.message = 'Tidak ada perubahan data';
+      isSubmitting.value = false;
+      return;
+    }
+
     const response = await profileApi.updateProfile(payload);
-    
+
     notification.type = 'success';
     notification.message = response.message || 'Data diri berhasil diperbarui.';
 
-    const currentUserData = localStorage.getItem('user');
-    if (currentUserData) {
-      const parsed = JSON.parse(currentUserData);
-      parsed.full_name = formData.full_name;
-      localStorage.setItem('user', JSON.stringify(parsed));
-      
-      window.dispatchEvent(new Event('storage'));
+    // ✅ Update nama di header navbar
+    if (payload.full_name && updateFirstName) {
+      updateFirstName(formData.full_name);
     }
-    
-  } catch (error: any) {
-    notification.type = 'error';
-    const status = error.response?.status;
 
-    if (status === 422 && error.response?.data?.errors) {
-      const serverErrors = error.response.data.errors;
-      errors.full_name = serverErrors.full_name ? serverErrors.full_name[0] : '';
-      errors.whatsapp_number = serverErrors.whatsapp_number ? serverErrors.whatsapp_number[0] : '';
+    originalData.value = { ...formData };
+  } catch (error: unknown) {
+    const apiError = error as ApiError;
+    const status = apiError.response?.status;
+
+    if (status === 422) {
+      const serverErrors = apiError.response?.data?.errors;
+
+      if (serverErrors?.whatsapp_number) {
+        const message = serverErrors.whatsapp_number[0];
+
+        localStorage.removeItem('sabana_token');
+
+        window.location.href = `/verify-otp?nik=${formData.nik}&wa=${formData.whatsapp_number}&message=${encodeURIComponent(message)}`;
+        return;
+      }
+
+      errors.full_name = serverErrors?.full_name ? serverErrors.full_name[0] : '';
+      errors.whatsapp_number = '';
       notification.message = 'Periksa kembali data yang Anda masukkan.';
-    } 
-    else if (status === 400 || status === 401) {
-      notification.message = error.response?.data?.message || 'Permintaan ditolak oleh sistem.';
-    } 
-    else {
-      notification.message = 'Terjadi gangguan pada layanan. Silakan coba beberapa saat lagi.';
+    } else {
+      notification.type = 'error';
+      notification.message = apiError.response?.data?.message || 'Terjadi gangguan pada layanan.';
     }
   } finally {
     isSubmitting.value = false;

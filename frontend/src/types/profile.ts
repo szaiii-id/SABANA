@@ -6,8 +6,8 @@ export interface CitizenProfile {
 }
 
 export interface UpdateProfilePayload {
-  full_name: string;
-  whatsapp_number: string;
+  full_name?: string;
+  whatsapp_number?: string;
 }
 
 export interface ProfileApiResponse {

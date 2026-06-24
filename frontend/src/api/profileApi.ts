@@ -8,7 +8,7 @@ export const profileApi = {
   },
   
   updateProfile: async (payload: UpdateProfilePayload): Promise<ProfileApiResponse> => {
-    const response = await api.put<ProfileApiResponse>('/citizen/profile', payload);
+    const response = await api.patch<ProfileApiResponse>('/citizen/profile', payload);
     return response.data;
   }
 };
