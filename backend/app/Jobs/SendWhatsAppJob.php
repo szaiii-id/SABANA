@@ -1,6 +1,5 @@
 <?php
 
-// app/Jobs/SendWhatsAppJob.php
 namespace App\Jobs;
 
 use App\Services\FonnteService;
@@ -15,6 +14,9 @@ class SendWhatsAppJob implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
+    public int $tries = 3;
+    public int $backoff = 10;
+
     public function __construct(
         public string $target, 
         public string $message
@@ -25,7 +27,25 @@ class SendWhatsAppJob implements ShouldQueue
         try {
             $fonnteService->sendMessage($this->target, $this->message);
         } catch (\Exception $e) {
-            Log::error("Gagal kirim WA via Job: " . $e->getMessage());
+            Log::error("Gagal kirim WA via Job: " . $e->getMessage(), [
+                'target' => $this->target,
+                'attempt' => $this->attempts(),
+            ]);
+
+            if ($this->attempts() < $this->tries) {
+                $this->release($this->backoff);
+                return;
+            }
+
+            throw $e;
         }
+    }
+
+    public function failed(\Throwable $exception): void
+    {
+        Log::critical('WhatsApp Job Permanent Failure', [
+            'target' => $this->target,
+            'error' => $exception->getMessage(),
+        ]);
     }
 }
