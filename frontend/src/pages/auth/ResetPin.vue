@@ -44,33 +44,43 @@ import { getSafeErrorMessage } from '../../utils/errorHandler';
 import AuthLayout from '../../layouts/AuthLayout.vue';
 import SuccessModal from '../../components/auth/SuccessModal.vue';
 
+// ===== TYPES =====
+type NumericField = 'otp' | 'new_pin' | 'new_pin_confirmation';
+
+// ===== COMPOSABLES =====
 const route = useRoute();
 const router = useRouter();
 const { isSubmitting, errorMessage, executeReset } = useForgotPin();
 
+// ===== STATE =====
 const showSuccessModal = ref(false);
 const formData = ref({
   nik: (route.query.nik as string) || '',
   whatsapp_number: (route.query.wa as string) || '',
   otp: '',
   new_pin: '',
-  new_pin_confirmation: ''
+  new_pin_confirmation: '',
 });
 
+// ===== COMPUTED =====
 const safeError = computed(() => getSafeErrorMessage(errorMessage.value));
 
-onMounted(() => { if (!formData.value.nik) router.replace({ name: 'login' }); });
+// ===== LIFECYCLE =====
+onMounted(() => {
+  if (!formData.value.nik) router.replace({ name: 'login' });
+});
 
-const formatNumeric = (field: string, maxLength: number) => {
-  (formData.value as any)[field] = (formData.value as any)[field].replace(/\D/g, '').substring(0, maxLength);
+// ===== METHODS =====
+const formatNumeric = (field: NumericField, maxLength: number): void => {
+  formData.value[field] = formData.value[field].replace(/\D/g, '').substring(0, maxLength);
 };
 
-const handleReset = async () => {
+const handleReset = async (): Promise<void> => {
   const result = await executeReset(formData.value);
   if (result.success) showSuccessModal.value = true;
 };
 
-const handleSuccessConfirm = () => {
+const handleSuccessConfirm = (): void => {
   showSuccessModal.value = false;
   router.push({ name: 'login' });
 };
