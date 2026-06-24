@@ -1,22 +1,25 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Adapters;
 
 use App\Contracts\SearchEngineInterface;
 use Elastic\Elasticsearch\Client;
 
-class ElasticsearchAdapter implements SearchEngineInterface
+final class ElasticsearchAdapter implements SearchEngineInterface
 {
-    protected Client $client;
+    public function __construct(
+        private readonly Client $client,
+    ) {}
 
-    public function __construct(Client $client)
+    public function index(array $params): void
     {
-        $this->client = $client;
+        $this->client->index($params);
     }
 
-    public function index(array $params)
+    public function indices(): object
     {
-        // Memanggil fungsi asli dari library final Elasticsearch
-        return $this->client->index($params);
+        return $this->client->indices();
     }
 }
