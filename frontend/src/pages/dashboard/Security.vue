@@ -22,7 +22,7 @@
 
       <div class="lg:col-span-7">
         <div class="bg-white rounded-[2rem] border border-gray-100 shadow-xl shadow-gray-200/40 p-6 md:p-10">
-          
+
           <transition enter-active-class="transition duration-300 ease-out" enter-from-class="transform -translate-y-4 opacity-0" enter-to-class="transform translate-y-0 opacity-100">
             <div v-if="notification.message" :class="['mb-8 p-4 rounded-2xl flex items-start gap-3 border', notification.type === 'success' ? 'bg-green-50 border-green-200 text-green-800' : 'bg-red-50 border-red-200 text-red-800']">
               <svg v-if="notification.type === 'success'" class="w-5 h-5 text-green-500 mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
@@ -42,10 +42,9 @@
                 type="password" 
                 inputmode="numeric"
                 placeholder="Masukkan PIN Saat Ini"
-                required
-                :class="['w-full bg-gray-50 border-2 rounded-2xl px-5 py-4 outline-none transition-all font-black text-center tracking-[1em] placeholder:tracking-normal  placeholder:text-sm text-gray-800 focus:bg-white', errors.current_pin ? 'border-red-400 bg-red-50' : 'border-gray-100 focus:border-[#2D6A4F]']"
+                :class="['w-full bg-gray-50 border-2 rounded-2xl px-5 py-4 outline-none transition-all font-black text-center tracking-[1em] placeholder:tracking-normal placeholder:text-sm text-gray-800 focus:bg-white', currentPinError ? 'border-red-400 bg-red-50' : 'border-gray-100 focus:border-[#2D6A4F]']"
               />
-              <p v-if="errors.current_pin" class="text-[10px] font-bold text-red-500 mt-2 ml-2 animate-pulse">{{ errors.current_pin }}</p>
+              <p v-if="currentPinError" class="text-[10px] font-bold text-red-500 mt-2 ml-2 animate-pulse">{{ currentPinError }}</p>
             </div>
 
             <div class="h-px bg-gray-100 w-full mb-8"></div>
@@ -60,10 +59,9 @@
                   type="password" 
                   inputmode="numeric"
                   placeholder="6 Digit PIN Baru"
-                  required
-                  :class="['w-full bg-gray-50 border-2 rounded-2xl px-5 py-4 outline-none transition-all font-black text-center tracking-[1em] placeholder:tracking-normal placeholder:text-sm placeholder:font-bold placeholder:text-gray-300 text-xl text-gray-800 focus:bg-white', errors.new_pin ? 'border-red-400 bg-red-50' : 'border-gray-100 focus:border-[#2D6A4F]']"
+                  :class="['w-full bg-gray-50 border-2 rounded-2xl px-5 py-4 outline-none transition-all font-black text-center tracking-[1em] placeholder:tracking-normal placeholder:text-sm placeholder:font-bold placeholder:text-gray-300 text-xl text-gray-800 focus:bg-white', newPinError ? 'border-red-400 bg-red-50' : 'border-gray-100 focus:border-[#2D6A4F]']"
                 />
-                <p v-if="errors.new_pin" class="text-[10px] font-bold text-red-500 mt-2 ml-2 animate-pulse">{{ errors.new_pin }}</p>
+                <p v-if="newPinError" class="text-[10px] font-bold text-red-500 mt-2 ml-2 animate-pulse">{{ newPinError }}</p>
               </div>
 
               <div>
@@ -75,10 +73,9 @@
                   type="password" 
                   inputmode="numeric"
                   placeholder="Ulangi PIN Baru"
-                  required
-                  :class="['w-full bg-gray-50 border-2 rounded-2xl px-5 py-4 outline-none transition-all font-black text-center tracking-[1em] placeholder:tracking-normal placeholder:text-sm placeholder:font-bold placeholder:text-gray-300 text-xl text-gray-800 focus:bg-white', errors.new_pin_confirmation ? 'border-red-400 bg-red-50' : 'border-gray-100 focus:border-[#2D6A4F]']"
+                  :class="['w-full bg-gray-50 border-2 rounded-2xl px-5 py-4 outline-none transition-all font-black text-center tracking-[1em] placeholder:tracking-normal placeholder:text-sm placeholder:font-bold placeholder:text-gray-300 text-xl text-gray-800 focus:bg-white', confirmPinError ? 'border-red-400 bg-red-50' : 'border-gray-100 focus:border-[#2D6A4F]']"
                 />
-                <p v-if="errors.new_pin_confirmation" class="text-[10px] font-bold text-red-500 mt-2 ml-2 animate-pulse">{{ errors.new_pin_confirmation }}</p>
+                <p v-if="confirmPinError" class="text-[10px] font-bold text-red-500 mt-2 ml-2 animate-pulse">{{ confirmPinError }}</p>
               </div>
             </div>
 
@@ -100,81 +97,105 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, ref } from 'vue';
-import { securityApi } from '../../api/securityApi'; 
+import { reactive, ref, computed } from 'vue';
+import { useRouter } from 'vue-router';
+import { securityApi } from '../../api/securityApi';
 import { getSafeErrorMessage } from '../../utils/errorHandler';
 
+// ===== TYPES =====
+interface ApiError {
+  response?: {
+    status?: number;
+    data?: {
+      message?: string;
+      errors?: Record<string, string[]>;
+    };
+  };
+}
+
+type FormField = 'current_pin' | 'new_pin' | 'new_pin_confirmation';
+
+// ===== COMPOSABLES =====
+const router = useRouter();
+
+// ===== STATE =====
 const isSubmitting = ref(false);
-const notification = reactive({ type: '', message: '' });
+const notification = reactive({ type: '' as string, message: '' });
 
 const form = reactive({
   current_pin: '',
   new_pin: '',
-  new_pin_confirmation: ''
+  new_pin_confirmation: '',
 });
 
-const errors = reactive({
-  current_pin: '',
-  new_pin: '',
-  new_pin_confirmation: ''
+// ===== REAL-TIME VALIDATION =====
+const currentPinError = computed<string>(() => {
+  if (!form.current_pin) return '';
+  if (form.current_pin.length !== 6) return 'PIN harus 6 digit';
+  return '';
 });
 
-const formatNumeric = (field: keyof typeof form) => {
+const newPinError = computed<string>(() => {
+  if (!form.new_pin) return '';
+  if (form.new_pin.length !== 6) return 'PIN harus 6 digit';
+  if (form.current_pin.length === 6 && form.new_pin === form.current_pin) return 'PIN baru tidak boleh sama dengan PIN saat ini';
+  return '';
+});
+
+const confirmPinError = computed<string>(() => {
+  if (!form.new_pin_confirmation) return '';
+  if (form.new_pin.length === 6 && form.new_pin_confirmation !== form.new_pin) return 'Konfirmasi PIN tidak sesuai';
+  return '';
+});
+
+// ===== METHODS =====
+const formatNumeric = (field: FormField): void => {
   form[field] = form[field].replace(/\D/g, '').substring(0, 6);
-  errors[field] = '';
   notification.message = '';
 };
 
-const validateForm = () => {
-  let isValid = true;
-  Object.keys(errors).forEach(key => (errors as any)[key] = '');
-
-  if (form.current_pin.length !== 6) {
-    errors.current_pin = 'PIN harus 6 digit';
-    isValid = false;
-  }
-  if (form.new_pin.length !== 6) {
-    errors.new_pin = 'PIN harus 6 digit';
-    isValid = false;
-  }
-  if (form.new_pin !== form.new_pin_confirmation) {
-    errors.new_pin_confirmation = 'Konfirmasi PIN tidak sesuai';
-    isValid = false;
-  }
-  if (form.current_pin === form.new_pin && form.new_pin.length === 6) {
-    errors.new_pin = 'PIN baru tidak boleh sama dengan PIN saat ini';
-    isValid = false;
-  }
-
-  return isValid;
+const validateForm = (): boolean => {
+  if (!form.current_pin || !form.new_pin || !form.new_pin_confirmation) return false;
+  return !currentPinError.value && !newPinError.value && !confirmPinError.value;
 };
 
-const handleSubmit = async () => {
-  if (!validateForm()) return;
+const handleSubmit = async (): Promise<void> => {
+  if (!validateForm()) {
+    notification.type = 'error';
+    notification.message = 'Semua field wajib diisi dengan benar.';
+    return;
+  }
 
   isSubmitting.value = true;
   notification.message = '';
-  
-  try {
-    const response = await securityApi.updatePin({ ...form });
-    notification.type = 'success';
-    notification.message = response.message || 'PIN berhasil diperbarui.';
-    Object.assign(form, { current_pin: '', new_pin: '', new_pin_confirmation: '' });
-  } catch (error: any) {
-    notification.type = 'error';
-    const status = error.response?.status;
 
-    if (status === 422 && error.response?.data?.errors) {
-      const serverErrors = error.response.data.errors;
-      errors.current_pin = serverErrors.current_pin ? serverErrors.current_pin[0] : '';
-      errors.new_pin = serverErrors.new_pin ? serverErrors.new_pin[0] : '';
-      notification.message = 'Periksa kembali data yang Anda masukkan.';
+  try {
+    await securityApi.updatePin({ ...form });
+
+    localStorage.removeItem('sabana_token');
+
+    await router.replace({
+      name: 'login',
+      query: {
+        message: 'PIN berhasil diperbarui. Silakan login dengan PIN baru Anda.',
+      },
+    });
+  } catch (error: unknown) {
+    const apiError = error as ApiError;
+    notification.type = 'error';
+    const status = apiError.response?.status;
+
+    if (status === 422 && apiError.response?.data?.errors) {
+      const serverErrors = apiError.response.data.errors;
+      if (serverErrors.current_pin) notification.message = serverErrors.current_pin[0];
+      else if (serverErrors.new_pin) notification.message = serverErrors.new_pin[0];
+      notification.message = notification.message || 'Periksa kembali data yang Anda masukkan.';
     } else if (status === 422) {
-      notification.message = error.response?.data?.message || 'Periksa kembali data Anda.';
+      notification.message = apiError.response?.data?.message || 'Periksa kembali data Anda.';
     } else if (status === 400 || status === 401) {
-      notification.message = getSafeErrorMessage(error.response?.data?.message || 'Permintaan ditolak.');
+      notification.message = getSafeErrorMessage(apiError.response?.data?.message || 'Permintaan ditolak.');
     } else {
-      notification.message = getSafeErrorMessage(error.response?.data?.message || 'Terjadi kesalahan sistem.');
+      notification.message = getSafeErrorMessage(apiError.response?.data?.message || 'Terjadi kesalahan sistem.');
     }
   } finally {
     isSubmitting.value = false;
