@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\Admin;
 use App\Models\Citizen;
 use App\Models\User;
 
@@ -73,14 +74,19 @@ return [
     */
 
     'providers' => [
-        'users' => [
-            'driver' => 'eloquent',
-            'model' => env('AUTH_MODEL', User::class),
-        ],
+        // 'users' => [
+        //     'driver' => 'eloquent',
+        //     'model' => env('AUTH_MODEL', User::class),
+        // ],
 
     'citizens' => [
         'driver' => 'eloquent',
         'model' => Citizen::class,
+    ],
+
+    'admins' => [
+            'driver' => 'eloquent',
+            'model' => Admin::class,
     ],
 
         // 'users' => [

@@ -1,101 +1,210 @@
 import { ref } from 'vue';
 import { useRouter } from 'vue-router';
 import AuthService from '../services/AuthService';
-import type { RegisterPayload, LoginPayload } from '../types/auth'; 
+import type { RegisterPayload, LoginPayload } from '../types/auth';
 
+// ===== TYPES =====
+interface RegistrationResult {
+  success: boolean;
+  phone?: string;
+}
+
+interface LoginResult {
+  success: boolean;
+  require_pin_change?: boolean;
+  needsVerification?: boolean;
+  wa?: string;
+  message?: string;
+}
+
+interface ApiError {
+  response?: {
+    status?: number;
+    data?: {
+      message?: string;
+      errors?: Record<string, string[]>;
+    };
+  };
+  message?: string;
+}
+
+// ===== TOKEN SERVICE (Abstraction over localStorage) =====
+const TokenService = {
+  getToken(): string | null {
+    return localStorage.getItem('sabana_token');
+  },
+
+  setToken(token: string): void {
+    localStorage.setItem('sabana_token', token);
+  },
+
+  removeToken(): void {
+    localStorage.removeItem('sabana_token');
+  },
+
+  // Hapus SEMUA data sesi
+  clearSession(): void {
+    localStorage.removeItem('sabana_token');
+    // Tidak menyimpan citizen data!
+  },
+};
+
+// ===== CONSTANTS =====
+const GENERIC_ERROR_MESSAGE = 'Gagal terhubung ke server SABANA.';
+const INVALID_RESPONSE_MESSAGE = 'Gagal membaca struktur data dari server.';
+const DEFAULT_CREDENTIAL_ERROR = 'Kombinasi NIK dan PIN tidak cocok.';
+
+// ===== COMPOSABLE =====
 export function useAuth() {
-  const router = useRouter(); 
-  const isSubmitting = ref(false);
-  const authError = ref('');
+  const router = useRouter();
+  const isSubmitting = ref<boolean>(false);
+  const authError = ref<string>('');
 
-  const submitRegistration = async (formData: RegisterPayload) => {
+  // ===== HELPER =====
+  const getErrorMessage = (error: unknown): string => {
+    const apiError = error as ApiError;
+
+    if (apiError?.response?.data?.message) {
+      return apiError.response.data.message;
+    }
+
+    if (apiError?.message) {
+      return apiError.message;
+    }
+
+    return GENERIC_ERROR_MESSAGE;
+  };
+
+  const logError = (context: string, error: unknown): void => {
+    if (import.meta.env.DEV) {
+      console.error(`[useAuth] ${context}:`, error);
+    }
+    // TODO: Integrasi dengan error tracking service (Sentry/Datadog) di production
+  };
+
+  // ===== REGISTRATION =====
+  const submitRegistration = async (formData: RegisterPayload): Promise<RegistrationResult> => {
     isSubmitting.value = true;
     authError.value = '';
-    
+
     try {
       await AuthService.registerUser(formData);
-      return { success: true, phone: formData.whatsapp_number }; 
-    } catch (error: any) {
-      authError.value = error.response?.data?.message || 'Gagal terhubung ke server SABANA.';
+
+      return {
+        success: true,
+        phone: formData.whatsapp_number,
+      };
+    } catch (error: unknown) {
+      authError.value = getErrorMessage(error);
+      logError('Registration failed', error);
+
       return { success: false };
     } finally {
       isSubmitting.value = false;
     }
   };
 
-  const submitLogin = async (payload: LoginPayload) => {
+  // ===== LOGIN =====
+  const submitLogin = async (payload: LoginPayload): Promise<LoginResult> => {
     isSubmitting.value = true;
     authError.value = '';
-    
-    try {
-      // 1. Tangkap response dan set tipe ke 'any' agar TypeScript tidak protes
-      // saat kita mencoba mengakses properti .data di bawahnya.
-      const response: any = await AuthService.loginUser(payload);
-      
-      // 2. EKSTRAKSI AMAN (Bulletproof)
-      // Karena JSON Laravel bentuknya: { status: '...', message: '...', data: { user: {...}, token: '...' } }
-      // Kita cek berlapis untuk mengambil isi data yang sesungguhnya.
-      const token = response.data?.token || response.token;
-      const user = response.data?.user || response.user;
 
-      // 3. Jika setelah dicek ternyata token tidak ada, lempar error untuk dicegat blok Catch
-      if (!token || !user) {
-         console.error("Format data dari server tidak sesuai:", response);
-         throw new Error("Gagal membaca struktur token dari server.");
+    try {
+      const response = await AuthService.loginUser(payload);
+
+      const citizen = response.data?.citizen;
+      const token = response.data?.token;
+      const requirePinChange = response.data?.require_pin_change ?? false;
+
+      // Validasi response
+      if (!token || !citizen) {
+        logError('Invalid response format', response);
+        throw new Error(INVALID_RESPONSE_MESSAGE);
       }
-      
-      // 4. Simpan Token & User ke Local Storage (DIJAMIN isinya string beneran, bukan "undefined")
-      localStorage.setItem('token', token);
-      localStorage.setItem('user', JSON.stringify(user));
-      
-      return { 
+
+      // Bersihkan sesi lama sebelum set baru
+      TokenService.clearSession();
+
+      // HANYA simpan token. JANGAN simpan citizen data!
+      TokenService.setToken(token);
+
+      return {
         success: true,
-        mustChangePin: user.must_change_pin || false, 
+        require_pin_change: requirePinChange,
       };
-      
-    } catch (error: any) {
-      if (error.response?.status === 422) {
-        const errors = error.response.data.errors;
-        
+    } catch (error: unknown) {
+      const apiError = error as ApiError;
+
+      // Handle 422 Unprocessable Entity (validation/business errors)
+      if (apiError?.response?.status === 422) {
+        const errors = apiError.response.data?.errors;
+
+        // Akun belum terverifikasi
         if (errors?.is_verified) {
-          return { 
-            success: false, 
-            needsVerification: true, 
-            wa: errors.whatsapp_number, 
-            message: errors.is_verified[0]
+          return {
+            success: false,
+            needsVerification: true,
+            wa: errors.whatsapp_number as unknown as string,
+            message: errors.is_verified[0],
           };
         }
-        
-        authError.value = errors?.nik?.[0] || 'Kombinasi NIK dan PIN tidak cocok.';
-      } else {
-        console.error("Detail Error Login:", error);
-        authError.value = error.response?.data?.message || 'Gagal terhubung ke server SABANA.';
+
+        // Kredensial salah
+        authError.value = errors?.nik?.[0] || DEFAULT_CREDENTIAL_ERROR;
+
+        return { success: false };
       }
+
+      // Error lainnya (network, server, dll)
+      logError('Login failed', error);
+      authError.value = getErrorMessage(error);
+
       return { success: false };
     } finally {
       isSubmitting.value = false;
     }
   };
 
-  const handleLogout = async () => {
+  // ===== LOGOUT =====
+  const handleLogout = async (): Promise<void> => {
     isSubmitting.value = true;
+
     try {
-      await AuthService.logoutUser(); 
-    } catch (error) {
-      console.error('API logout error, clearing local session anyway.');
+      await AuthService.logoutUser();
+    } catch (error: unknown) {
+      // Tetap hapus sesi lokal meski API gagal
+      logError('Logout API error (clearing local session)', error);
     } finally {
-      localStorage.removeItem('token');
-      localStorage.removeItem('user');
+      // Hapus token — ini satu-satunya yang disimpan
+      TokenService.clearSession();
+
       isSubmitting.value = false;
-      router.push({ name: 'home' });
+
+      // Redirect ke home
+      await router.push({ name: 'home' });
     }
   };
 
-  return { 
-    isSubmitting, 
-    authError, 
-    submitRegistration, 
-    submitLogin, 
-    handleLogout 
+  // ===== CHECK AUTH STATUS =====
+  const isAuthenticated = (): boolean => {
+    return TokenService.getToken() !== null;
+  };
+
+  // ===== GET STORED TOKEN =====
+  const getStoredToken = (): string | null => {
+    return TokenService.getToken();
+  };
+
+  return {
+    // State
+    isSubmitting,
+    authError,
+
+    // Methods
+    submitRegistration,
+    submitLogin,
+    handleLogout,
+    isAuthenticated,
+    getStoredToken,
   };
 }

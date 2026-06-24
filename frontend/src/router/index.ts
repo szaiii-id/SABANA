@@ -1,9 +1,10 @@
 import { createRouter, createWebHistory } from 'vue-router'
+import { adminRoutes } from '../admin/router/routes';
 
 const router = createRouter({
   history: createWebHistory(),
   routes: [
-    // 1. PUBLIC ROUTES
+    // === 1. PUBLIC ROUTES ===
     {
       path: '/',
       component: () => import('../layouts/LandingLayout.vue'),
@@ -16,7 +17,7 @@ const router = createRouter({
       ]
     },
 
-    // 2. AUTH ROUTES 
+    // === 2. AUTH ROUTES (CITIZEN) === 
     {
       path: '/login',
       name: 'login',
@@ -43,7 +44,7 @@ const router = createRouter({
       component: () => import('../pages/auth/ResetPin.vue')
     },
 
-    // 3. PROTECTED ROUTES
+    // === 3. PROTECTED ROUTES (CITIZEN) ===
     {
       path: '/dashboard',
       component: () => import('../layouts/DashboardLayout.vue'), 
@@ -88,26 +89,37 @@ const router = createRouter({
           path: '/assistance/detail/:id',
           name: 'assistance.detail',
           component: () => import('../pages/dashboard/AssistanceDetail.vue')
-        },
-        
+        }
       ]
-    }
+    },
+
+    // === 4. ADMIN ROUTES (MODULAR) ===
+    ...adminRoutes 
   ]
 })
 
+// === GLOBAL MULTI-GUARD ===
 router.beforeEach((to, _from, next) => {
-  const token = localStorage.getItem('token');
-  const isAuthenticated = !!token;
+  const citizenToken = localStorage.getItem('sabana_token');
+  const adminToken = localStorage.getItem('admin_token');
 
-  if (to.meta.requiresAuth && !isAuthenticated) {
+  if (to.meta.requiresAdmin && !adminToken) {
+    return next({ name: 'admin.login' });
+  }
+  if (to.meta.isGuestAdmin && adminToken) {
+    return next({ name: 'admin.dashboard' });
+  }
+
+  const isCitizenAuthenticated = !!citizenToken;
+  if (to.meta.requiresAuth && !isCitizenAuthenticated) {
     next({ name: 'login' });
   } 
-  else if ((to.name === 'login' || to.name === 'register') && isAuthenticated) {
+  else if ((to.name === 'login' || to.name === 'register') && isCitizenAuthenticated) {
     next({ name: 'dashboard.home' });
   }
   else {
-    next();
+    next(); // Izinkan lewat (untuk rute publik)
   }
 });
 
-export default router
+export default router;

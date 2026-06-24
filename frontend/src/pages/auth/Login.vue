@@ -9,15 +9,30 @@
       leave-from-class="transform translate-y-0 opacity-100" 
       leave-to-class="transform -translate-y-4 opacity-0"
     >
-      <div v-if="sessionAlert" class="mb-8 bg-amber-50 border-l-4 border-amber-500 p-4 rounded-r-2xl shadow-sm flex items-start gap-3">
-        <svg class="w-6 h-6 text-amber-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <div v-if="sessionAlert" 
+        :class="[
+          'mb-8 border-l-4 p-4 rounded-r-2xl shadow-sm flex items-start gap-3',
+          isSuccessMessage 
+            ? 'bg-green-50 border-green-500' 
+            : 'bg-amber-50 border-amber-500'
+        ]">
+        <svg v-if="isSuccessMessage" class="w-6 h-6 text-green-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+        </svg>
+        <svg v-else class="w-6 h-6 text-amber-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
         </svg>
         <div class="flex-grow">
-          <h3 class="text-[10px] font-black text-amber-800 uppercase tracking-widest mb-1">Keamanan Sesi</h3>
-          <p class="text-[11px] font-bold text-amber-700 leading-relaxed">{{ sessionAlert }}</p>
+          <h3 class="text-[10px] font-black uppercase tracking-widest mb-1"
+            :class="isSuccessMessage ? 'text-green-800' : 'text-amber-800'">
+            {{ isSuccessMessage ? 'Informasi' : 'Keamanan Sesi' }}
+          </h3>
+          <p class="text-[11px] font-bold leading-relaxed"
+            :class="isSuccessMessage ? 'text-green-700' : 'text-amber-700'">
+            {{ sessionAlert }}
+          </p>
         </div>
-        <button @click="sessionAlert = ''" class="text-amber-400 hover:text-amber-600 transition-colors p-1">
+        <button @click="sessionAlert = ''" class="text-gray-400 hover:text-gray-600 transition-colors p-1">
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
           </svg>
@@ -30,7 +45,7 @@
         <span class="text-3xl font-[1000] italic tracking-tighter text-[#2D6A4F]">SABANA</span>
       </router-link>
       <h1 class="text-2xl font-[1000] text-gray-800 uppercase tracking-tight mb-1">Selamat Datang</h1>
-      <p class="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] leading-relaxed italic">Sistem Informasi Bantuan Banua</p>
+      <p class="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] leading-relaxed italic">Sarana Bantuan Anak Banua</p>
     </div>
 
     <form @submit.prevent="onSubmit" class="space-y-4">
@@ -102,42 +117,54 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, nextTick } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
 import { useVuelidate } from '@vuelidate/core';
 import { required, helpers } from '@vuelidate/validators';
 import { useAuth } from '../../composables/useAuth';
-import { getSafeErrorMessage } from '../../utils/errorHandler'; 
-import AuthLayout from '../../layouts/AuthLayout.vue'; 
+import { getSafeErrorMessage } from '../../utils/errorHandler';
+import AuthLayout from '../../layouts/AuthLayout.vue';
 
+// ===== TYPES =====
+type NumericField = 'nik' | 'pin';
+
+// ===== COMPOSABLES =====
+const route = useRoute();
+const router = useRouter();
 const { isSubmitting, authError, submitLogin } = useAuth();
 const pinInput = ref<HTMLInputElement | null>(null);
 
-const formData = ref({ 
-  nik: '', 
+// ===== STATE =====
+const formData = ref({
+  nik: '',
   pin: '',
-  rememberNik: false 
+  rememberNik: false,
 });
 
 const sessionAlert = ref('');
 
-const wjb = helpers.withMessage('Wajib diisi', required);
-const lkp16 = helpers.withMessage('Harus 16 digit', (val: string) => val.length === 16);
-const lkp6 = helpers.withMessage('Harus 6 digit', (val: string) => val.length === 6);
-
+// ===== VALIDATION =====
 const rules = computed(() => ({
-  nik: { required: wjb, length: lkp16 },
-  pin: { required: wjb, length: lkp6 }
+  nik: {
+    required: helpers.withMessage('Wajib diisi', required),
+    length: helpers.withMessage('Harus 16 digit', (val: string) => val.length === 16),
+  },
+  pin: {
+    required: helpers.withMessage('Wajib diisi', required),
+    length: helpers.withMessage('Harus 6 digit', (val: string) => val.length === 6),
+  },
 }));
 
 const v$ = useVuelidate(rules, formData);
 
+// ===== COMPUTED =====
 const safeAuthError = computed(() => getSafeErrorMessage(authError.value));
+const isSuccessMessage = computed(() => !!route.query.message);
 
+// ===== LIFECYCLE =====
 onMounted(() => {
-  // 1. Simpan nilai sebelum clear
-  const isSessionExpired = localStorage.getItem('session_expired');
+  const successMessage = route.query.message as string;
   const savedNik = localStorage.getItem('remembered_nik');
-  
-  // 2. Load NIK jika ada
+
   if (savedNik) {
     formData.value.nik = savedNik;
     formData.value.rememberNik = true;
@@ -145,27 +172,25 @@ onMounted(() => {
       pinInput.value?.focus();
     });
   }
-  
-  // 3. Bersihkan localStorage
-  localStorage.clear();
-  
-  // 4. Restore remembered_nik
-  if (savedNik) {
-    localStorage.setItem('remembered_nik', savedNik);
-  }
-  
-  // 5. Set session alert setelah clear (pakai variabel yang sudah disimpan)
-  if (isSessionExpired) {
+
+  // ✅ Hanya hapus token, TIDAK ada citizen!
+  localStorage.removeItem('sabana_token');
+
+  if (successMessage) {
+    sessionAlert.value = successMessage;
+  } else if (localStorage.getItem('session_expired')) {
     sessionAlert.value = 'Sesi Anda telah berakhir otomatis demi keamanan. Silakan masuk kembali menggunakan PIN Anda.';
+    localStorage.removeItem('session_expired');
   }
 });
 
-const formatNumeric = (field: 'nik' | 'pin', maxLength: number) => {
+// ===== METHODS =====
+const formatNumeric = (field: NumericField, maxLength: number): void => {
   formData.value[field] = formData.value[field].replace(/\D/g, '').substring(0, maxLength);
-  if (authError.value) authError.value = ''; 
+  if (authError.value) authError.value = '';
 };
 
-const onSubmit = async () => {
+const onSubmit = async (): Promise<void> => {
   const isFormValid = await v$.value.$validate();
   if (!isFormValid) return;
 
@@ -177,11 +202,25 @@ const onSubmit = async () => {
 
   const result = await submitLogin({
     nik: formData.value.nik,
-    pin: formData.value.pin
+    pin: formData.value.pin,
   });
-  
+
   if (result.success) {
-    window.location.href = '/dashboard'; 
+    if (result.require_pin_change) {
+      router.push({ name: 'security' });
+    } else {
+      router.push({ name: 'dashboard.home' });
+    }
+    return;
+  }
+
+  if (result.needsVerification) {
+    const waNumber = Array.isArray(result.wa) ? result.wa[0] : (result.wa || '');
+    
+    router.push({
+      name: 'verify-otp',
+      query: { nik: formData.value.nik, wa: waNumber },
+    });
   }
 };
 </script>

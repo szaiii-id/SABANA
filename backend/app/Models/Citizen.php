@@ -9,6 +9,9 @@ use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
 use Laravel\Scout\Searchable;
 
+/**
+ * @property string $id
+ */
 class Citizen extends Authenticatable
 {
     use HasApiTokens, HasFactory, Notifiable, Searchable, HasUuids;

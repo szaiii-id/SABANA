@@ -1,4 +1,6 @@
-// src/types/auth.ts
+// ==========================================
+// PAYLOADS
+// ==========================================
 
 export interface RegisterPayload {
   nik: string;
@@ -7,6 +9,11 @@ export interface RegisterPayload {
   whatsapp_number: string;
   pin: string;
   pin_confirmation: string;
+}
+
+export interface LoginPayload {
+  nik: string;
+  pin: string;
 }
 
 export interface VerifyOtpPayload {
@@ -20,36 +27,6 @@ export interface ResendOtpPayload {
   whatsapp_number: string;
 }
 
-export interface LoginPayload {
-  nik: string;
-  pin: string;
-}
-
-
-export interface RegisterResponse {
-  status: string;
-  message: string;
-  data?: {
-    nik: string;
-    whatsapp_number: string;
-    full_name: string;
-  };
-}
-
-export interface LoginResponse {
-  user: any; 
-  token: string;
-}
-
-export interface Citizen {
-  id: number;
-  nik: string;
-  full_name: string;
-  whatsapp_number: string;
-  is_verified: boolean;
-  last_login_at?: string;
-}
-
 export interface ForgotPinPayload {
   nik: string;
   whatsapp_number: string;
@@ -60,5 +37,53 @@ export interface ResetPinPayload {
   whatsapp_number: string;
   otp: string;
   new_pin: string;
-  new_pin_confirmation: string; // Tambahkan ini
+  new_pin_confirmation: string;
 }
+
+export interface UpdateProfilePayload {
+  full_name: string;
+  whatsapp_number: string;
+}
+
+export interface UpdatePinPayload {
+  current_pin: string;
+  new_pin: string;
+  new_pin_confirmation: string;
+}
+
+// ==========================================
+// RESPONSES
+// ==========================================
+
+export interface ApiResponse<T = any> {
+  status: string;
+  message: string;
+  data?: T;
+}
+
+export interface CitizenData {
+  nik: string;
+  family_card_number: string;
+  full_name: string;
+  whatsapp_number: string;
+  is_verified: boolean;
+  last_login: string | null;
+}
+
+export interface LoginData {
+  citizen: CitizenData;
+  token: string;
+  require_pin_change?: boolean;
+}
+
+export interface RegisterData {
+  nik: string;
+  family_card_number: string;
+  full_name: string;
+  whatsapp_number: string;
+  is_verified: boolean;
+  last_login: string | null;
+}
+
+export type RegisterResponse = ApiResponse<RegisterData>;
+export type LoginResponse = ApiResponse<LoginData>;
