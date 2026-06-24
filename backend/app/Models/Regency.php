@@ -3,6 +3,8 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Regency extends Model
 {
@@ -10,7 +12,18 @@ class Regency extends Model
     protected $keyType = 'string';
     protected $fillable = ['id', 'province_id', 'name'];
 
-    public function province() {
+    public function province(): BelongsTo
+    {
         return $this->belongsTo(Province::class);
+    }
+
+    public function districts(): HasMany
+    {
+        return $this->hasMany(District::class);
+    }
+
+    public function villages(): HasMany
+    {
+        return $this->hasMany(Village::class);
     }
 }
