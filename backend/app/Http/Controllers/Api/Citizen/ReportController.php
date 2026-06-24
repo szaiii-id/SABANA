@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Http\Controllers\Api\Citizen;
 
 use App\Http\Controllers\Controller;
@@ -7,45 +9,61 @@ use App\Http\Requests\Citizen\SendWhatsappRequest;
 use App\Http\Requests\Citizen\SendEmailRequest;
 use App\Services\CitizenReportService;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Support\Facades\Log;
+use Throwable;
 
-class ReportController extends Controller
+final class ReportController extends Controller
 {
-    // Hanya butuh CitizenReportService di sini
-    public function __construct(private CitizenReportService $citizenReportService) {}
+    public function __construct(
+        private readonly CitizenReportService $citizenReportService,
+    ) {}
 
     public function whatsapp(SendWhatsappRequest $request): JsonResponse
     {
         try {
+            $validated = $request->validated();
+
             $this->citizenReportService->sendViaWhatsapp(
                 $request->user(),
-                $request->validated('pesan')
+                $validated['pesan']
             );
 
-            // KEMBALIKAN KEY KE 'message' AGAR VUE BISA MEMBACA NOTIFIKASINYA
-            return response()->json(['message' => 'Laporan berhasil diteruskan ke WhatsApp Admin.']);
-        } catch (\Exception $e) {
-            Log::error('WA Controller Error: ' . $e->getMessage());
-            return response()->json(['message' => 'Gagal mengirim laporan WhatsApp.'], 500);
+            return response()->json([
+                'status'  => 'success',
+                'message' => 'Laporan berhasil diteruskan ke WhatsApp Admin.',
+            ], 200);
+        } catch (Throwable $e) {
+            report($e);
+
+            return response()->json([
+                'status'  => 'error',
+                'message' => 'Terjadi kesalahan pada sistem. Silakan coba beberapa saat lagi.',
+            ], 500);
         }
     }
 
     public function email(SendEmailRequest $request): JsonResponse
     {
         try {
-            // Ambil data dari validasi (subjek, pesan, email) lalu lempar ke Service
+            $validated = $request->validated();
+
             $this->citizenReportService->sendViaEmail(
                 $request->user(),
-                $request->validated('subjek'),
-                $request->validated('pesan'),
-                $request->validated('email')
+                $validated['subjek'],
+                $validated['pesan'],
+                $validated['email']
             );
 
-            // KEMBALIKAN KEY KE 'message'
-            return response()->json(['message' => 'Laporan berhasil dikirim ke Email Instansi.']);
-        } catch (\Exception $e) {
-            Log::error('Email Controller Error: ' . $e->getMessage());
-            return response()->json(['message' => 'Gagal mengirim laporan email.'], 500);
+            return response()->json([
+                'status'  => 'success',
+                'message' => 'Laporan berhasil dikirim ke Email Instansi.',
+            ], 200);
+        } catch (Throwable $e) {
+            report($e);
+
+            return response()->json([
+                'status'  => 'error',
+                'message' => 'Terjadi kesalahan pada sistem. Silakan coba beberapa saat lagi.',
+            ], 500);
         }
     }
 }

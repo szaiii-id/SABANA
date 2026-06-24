@@ -75,10 +75,10 @@
                   @input="clearError('email')"
                   type="email" 
                   placeholder="nama@email.com"
-                  :class="errors.email ? 'border-red-300' : 'border-gray-200 focus:border-[#D4A373] focus:ring-[#D4A373]/10'"
+                  :class="emailError ? 'border-red-300' : 'border-gray-200 focus:border-[#D4A373] focus:ring-[#D4A373]/10'"
                   class="w-full px-5 py-3.5 bg-white rounded-xl text-sm border-2 outline-none transition-all"
                 />
-                <span v-if="errors.email" class="text-xs font-bold text-red-500">{{ errors.email }}</span>
+                <span v-if="emailError" class="text-xs font-bold text-red-500">{{ emailError }}</span>
               </div>
 
               <div class="flex flex-col gap-2">
@@ -88,10 +88,10 @@
                   @input="clearError('subjek')"
                   type="text" 
                   placeholder="Masukkan judul laporan..."
-                  :class="errors.subjek ? 'border-red-300' : 'border-gray-200 focus:border-[#D4A373] focus:ring-[#D4A373]/10'"
+                  :class="subjekError ? 'border-red-300' : 'border-gray-200 focus:border-[#D4A373] focus:ring-[#D4A373]/10'"
                   class="w-full px-5 py-3.5 bg-white rounded-xl text-sm border-2 outline-none transition-all"
                 />
-                <span v-if="errors.subjek" class="text-xs font-bold text-red-500">{{ errors.subjek }}</span>
+                <span v-if="subjekError" class="text-xs font-bold text-red-500">{{ subjekError }}</span>
               </div>
             </div>
 
@@ -102,10 +102,10 @@
                 @input="clearError('pesan')"
                 rows="5"
                 placeholder="Tuliskan keluhan secara lengkap..."
-                :class="errors.pesan ? 'border-red-300' : 'border-gray-200 focus:border-[#D4A373] focus:ring-[#D4A373]/10'"
+                :class="pesanError ? 'border-red-300' : 'border-gray-200 focus:border-[#D4A373] focus:ring-[#D4A373]/10'"
                 class="w-full px-5 py-3.5 bg-white rounded-xl text-sm border-2 outline-none transition-all resize-none"
               ></textarea>
-              <span v-if="errors.pesan" class="text-xs font-bold text-red-500">{{ errors.pesan }}</span>
+              <span v-if="pesanError" class="text-xs font-bold text-red-500">{{ pesanError }}</span>
             </div>
 
             <button 
@@ -128,93 +128,152 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, ref, onMounted, watch } from 'vue';
+import { reactive, ref, computed, onMounted, watch } from 'vue';
 import { reportApi } from '../../api/reportApi';
+import api from '../../api/axios';
 
-const activeTab = ref<'whatsapp' | 'email'>('whatsapp');
+// ===== TYPES =====
+interface ApiError {
+  response?: {
+    status?: number;
+    data?: {
+      message?: string;
+      errors?: Record<string, string[]>;
+    };
+  };
+}
+
+type TabType = 'whatsapp' | 'email';
+type ErrorField = 'email' | 'subjek' | 'pesan';
+
+// ===== STATE =====
+const activeTab = ref<TabType>('whatsapp');
 const isSubmitting = ref(false);
 
 const citizenData = reactive({
   nik: '',
-  full_name: ''
+  full_name: '',
 });
 
 const form = reactive({
   email: '',
   subjek: '',
-  pesan: ''
+  pesan: '',
 });
 
 const errors = reactive({
   email: '',
   subjek: '',
-  pesan: ''
+  pesan: '',
 });
 
 const notification = reactive({
-  type: '', 
-  message: ''
+  type: '' as string,
+  message: '',
 });
 
-onMounted(() => {
-  const userData = localStorage.getItem('user');
-  if (userData) {
-    const parsed = JSON.parse(userData);
-    citizenData.nik = parsed.nik;
-    citizenData.full_name = parsed.full_name;
+// ===== REAL-TIME VALIDATION =====
+const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+const emailError = computed<string>(() => {
+  if (!form.email) return '';
+  if (!emailRegex.test(form.email)) return 'Format email tidak valid';
+  return '';
+});
+
+const subjekError = computed<string>(() => {
+  if (!form.subjek) return '';
+  if (form.subjek.length < 5) return 'Subjek minimal 5 karakter';
+  return '';
+});
+
+const pesanError = computed<string>(() => {
+  if (!form.pesan) return '';
+  if (form.pesan.length < 10) return 'Pesan minimal 10 karakter';
+  return '';
+});
+
+// ===== FETCH =====
+onMounted(async () => {
+  try {
+    const response = await api.get('/citizen/profile');
+    const data = response.data?.data || response.data;
+    citizenData.nik = data.nik || '';
+    citizenData.full_name = data.full_name || '';
+  } catch {
+    // Fallback — biarkan kosong
   }
 });
 
+// ===== WATCH =====
 watch(activeTab, () => {
-  form.email = ''; form.subjek = ''; form.pesan = '';
-  errors.email = ''; errors.subjek = ''; errors.pesan = '';
+  form.email = '';
+  form.subjek = '';
+  form.pesan = '';
+  errors.email = '';
+  errors.subjek = '';
+  errors.pesan = '';
   notification.message = '';
 });
 
-const clearError = (field: keyof typeof errors) => {
+// ===== HELPERS =====
+const clearError = (field: ErrorField): void => {
   errors[field] = '';
   notification.message = '';
 };
 
-const validate = () => {
+const validate = (): boolean => {
   let valid = true;
   if (activeTab.value === 'email') {
-    if (!form.email.includes('@')) { errors.email = 'Email tidak valid'; valid = false; }
-    if (form.subjek.length < 5) { errors.subjek = 'Subjek minimal 5 karakter'; valid = false; }
+    if (emailError.value) {
+      errors.email = emailError.value;
+      valid = false;
+    }
+    if (subjekError.value) {
+      errors.subjek = subjekError.value;
+      valid = false;
+    }
   }
-  if (form.pesan.length < 10) { errors.pesan = 'Pesan minimal 10 karakter'; valid = false; }
+  if (pesanError.value) {
+    errors.pesan = pesanError.value;
+    valid = false;
+  }
   return valid;
 };
 
-const handleSubmit = async () => {
+// ===== SUBMIT =====
+const handleSubmit = async (): Promise<void> => {
   if (!validate()) return;
   isSubmitting.value = true;
   notification.message = '';
 
   try {
-    const res = activeTab.value === 'whatsapp' 
-      ? await reportApi.sendWhatsapp({ pesan: form.pesan }) 
-      : await reportApi.sendEmail({ 
+    const res = activeTab.value === 'whatsapp'
+      ? await reportApi.sendWhatsapp({ pesan: form.pesan })
+      : await reportApi.sendEmail({
           nama: citizenData.full_name,
           email: form.email,
-          subjek: form.subjek, 
-          pesan: form.pesan 
+          subjek: form.subjek,
+          pesan: form.pesan,
         });
 
     notification.type = 'success';
     notification.message = res.message;
-    form.pesan = ''; form.subjek = ''; form.email = '';
-    
-  } catch (err: any) {
+    form.pesan = '';
+    form.subjek = '';
+    form.email = '';
+  } catch (err: unknown) {
+    const apiError = err as ApiError;
     notification.type = 'error';
-    if (err.response?.status === 422) {
-      const serverErrors = err.response.data.errors;
+
+    if (apiError.response?.status === 422) {
+      const serverErrors = apiError.response.data?.errors;
       if (serverErrors) {
         if (serverErrors.subjek) errors.subjek = serverErrors.subjek[0];
         if (serverErrors.pesan) errors.pesan = serverErrors.pesan[0];
         if (serverErrors.email) errors.email = serverErrors.email[0];
       }
-      notification.message = err.response?.data?.message || 'Validasi gagal.';
+      notification.message = apiError.response?.data?.message || 'Validasi gagal.';
     } else {
       notification.message = 'Gagal mengirim laporan.';
     }
