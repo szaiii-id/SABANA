@@ -1,146 +1,158 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Http\Controllers\Api\Citizen;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Citizen\StoreAssistanceRequest;
 use App\Http\Resources\SubmissionDetailResource;
 use App\Http\Resources\SubmissionResource;
+use App\Models\Citizen;
 use App\Services\Assistance\AssistanceExportService;
 use App\Services\Assistance\AssistanceSubmissionService;
+use App\Exceptions\SubmissionException;
+use App\Http\Resources\SubmissionHistoryResource;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Throwable;
 
-class AssistanceController extends Controller
+final class AssistanceController extends Controller
 {
     public function __construct(
-        private AssistanceSubmissionService $submissionService
+        private readonly AssistanceSubmissionService $submissionService,
     ) {}
+
+    // ===== STORE =====
 
     public function store(StoreAssistanceRequest $request): JsonResponse
     {
         try {
-            $files = $request->allFiles(); 
-
-            $payload = $request->all();
             $submission = $this->submissionService->submit(
-                $request->user(), 
-                $payload, 
-                $files
+                $this->citizen($request),
+                $request->all(),
+                $request->allFiles(),
+                $request->header('X-Idempotency-Key')
             );
 
             return response()->json([
                 'success' => true,
                 'message' => 'Pendaftaran bantuan berhasil diajukan.',
-                'data' => [
+                'data'    => [
                     'registration_number' => $submission->registration_number,
-                    'status' => $submission->status
-                ]
+                    'status'              => $submission->status,
+                ],
             ], 201);
 
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => $e->getMessage()
-            ], 400);
+        } catch (SubmissionException $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
+        } catch (Throwable $e) {
+            report($e);
+            return response()->json(['success' => false, 'message' => 'Terjadi kesalahan pada sistem.'], 500);
         }
     }
+
+    // ===== SHOW =====
 
     public function show(string $registrationNumber): JsonResponse
     {
         try {
-            $submission = $this->submissionService->getByRegistrationNumber($registrationNumber);
-            
             return response()->json([
                 'success' => true,
-                'data' => $submission
+                'data'    => $this->submissionService->getByRegistrationNumber($registrationNumber),
             ]);
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Data pengajuan tidak ditemukan.'
-            ], 404);
+        } catch (Throwable) {
+            return response()->json(['success' => false, 'message' => 'Data pengajuan tidak ditemukan.'], 404);
         }
     }
 
+    // ===== DESTROY =====
 
     public function destroy(Request $request, string $registrationNumber): JsonResponse
     {
         try {
-            $this->submissionService->cancelSubmission(
-                $registrationNumber, 
-                $request->user()->id
-            );
-            
-            return response()->json([
-                'success' => true,
-                'message' => 'Pengajuan berhasil dibatalkan dan berkas telah dihapus.'
-            ]);
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => $e->getMessage()
-            ], 403);
+            $this->submissionService->cancelSubmission($registrationNumber, $this->citizen($request)->id);
+
+            return response()->json(['success' => true, 'message' => 'Pengajuan berhasil dibatalkan.']);
+        } catch (SubmissionException $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
+        } catch (Throwable) {
+            return response()->json(['success' => false, 'message' => 'Terjadi kesalahan pada sistem.'], 500);
         }
     }
 
-    public function history(Request $request): JsonResponse {
-        $submissions = $this->submissionService->getCitizenHistory($request->user()->id);
-        return response()->json([
-            'success' => true,
-            'data' => SubmissionResource::collection($submissions)
-        ]);
+    // ===== HISTORY =====
+
+    public function history(Request $request): JsonResponse
+    {
+        try {
+            $perPage = (int) $request->input('per_page', 10);
+            $result = $this->submissionService->getCitizenHistory($this->citizen($request)->id, $perPage);
+
+            return response()->json([
+                'success' => true,
+                'data' => SubmissionHistoryResource::collection($result),
+                'meta' => [
+                    'current_page' => $result->currentPage(),
+                    'last_page'    => $result->lastPage(),
+                    'total'        => $result->total(),
+                ],
+            ]);
+        } catch (Throwable $e) {
+            report($e);
+            return response()->json(['success' => false, 'message' => 'Terjadi kesalahan pada sistem.'], 500);
+        }
     }
+
+    // ===== UPDATE =====
 
     public function update(Request $request, string $id): JsonResponse
     {
         try {
-            $files = $request->allFiles(); 
-            $payload = $request->all();
-
-            $submission = $this->submissionService->update($id, $payload, $files);
+            $submission = $this->submissionService->update($id, $request->all(), $request->allFiles());
 
             return response()->json([
                 'success' => true,
                 'message' => 'Perbaikan data berhasil disimpan.',
-                'data' => [
-                    'registration_number' => $submission->registration_number,
-                    'status' => $submission->status
-                ]
-            ], 200);
-
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Gagal menyimpan perubahan: ' . $e->getMessage()
-            ], 400);
-        }
-    }
-
-
-    public function showById(string $id): JsonResponse {
-        try {
-            $submission = $this->submissionService->getById($id);
-            return response()->json([
-                'success' => true,
-                'data' => new SubmissionDetailResource($submission) 
+                'data'    => ['registration_number' => $submission->registration_number, 'status' => $submission->status],
             ]);
-        } catch (\Exception $e) {
-            return response()->json(['success' => false, 'message' => 'Data tidak ditemukan.'], 404);
+        } catch (SubmissionException $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
+        } catch (Throwable $e) {
+            report($e);
+            return response()->json(['success' => false, 'message' => 'Terjadi kesalahan pada sistem.'], 500);
         }
     }
 
+    // ===== SHOW BY ID =====
 
-    public function downloadReceipt(string $id, AssistanceExportService $exportService)
+    public function showById(string $id): JsonResponse
     {
         try {
-            $pdf = $exportService->generateReceiptPdf($id);
-            
-            $fileName = 'BUKTI_SABANA_' . $id . '.pdf';
-
-            return $pdf->stream($fileName); 
-        } catch (\Exception $e) {
-            return response()->json(['message' => $e->getMessage()], 404);
+            return response()->json([
+                'success' => true,
+                'data'    => new SubmissionDetailResource($this->submissionService->getById($id)),
+            ]);
+        } catch (Throwable) {
+            return response()->json(['success' => false, 'message' => 'Data pengajuan tidak ditemukan.'], 404);
         }
+    }
+
+    // ===== DOWNLOAD RECEIPT =====
+
+    public function downloadReceipt(string $id, AssistanceExportService $exportService): mixed
+    {
+        try {
+            return $exportService->generateReceiptPdf($id)->download('BUKTI_SABANA_' . $id . '.pdf');
+        } catch (Throwable $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], $e->getCode() === 403 ? 403 : 404);
+        }
+    }
+
+    // ===== HELPER =====
+
+    private function citizen(Request $request): Citizen
+    {
+        return $request->user();
     }
 }

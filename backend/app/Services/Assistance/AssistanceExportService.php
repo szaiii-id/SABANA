@@ -4,36 +4,40 @@ namespace App\Services\Assistance;
 
 use Barryvdh\DomPDF\Facade\Pdf;
 use App\Models\AssistanceSubmission;
+use Carbon\Carbon;
 
 class AssistanceExportService
 {
-    /**
-     * Generate PDF Bukti Pendaftaran
-     */
+
     public function generateReceiptPdf(string $id)
     {
-        // Load data lengkap dengan relasi
         $submission = AssistanceSubmission::with([
-            'citizen', 
-            'program', 
-            'evidences', 
-            'regency.province', // Tambahkan ini
-            'regency',  // Tambahkan ini
-            'district', // Tambahkan ini
-            'village'
-         ])->findOrFail($id);
+            'citizen',
+            'program',
+            'evidences',
+            'regency.province',
+            'regency',
+            'district',
+            'village',
+            'verifications'
+        ])->find($id);
 
-        // Data yang dikirim ke view Blade
+        if (!$submission) {
+            throw new \Exception('Data pengajuan tidak ditemukan.', 404);
+        }
+
+        if ($submission->status === 'needs_revision') {
+            throw new \Exception('Tidak dapat download PDF. Silakan lengkapi perbaikan terlebih dahulu.', 403);
+        }
+
         $data = [
-            'title' => 'BUKTI PENDAFTARAN SABANA',
-            'date'  => date('d/m/Y'),
+            'title'      => 'BUKTI PENDAFTARAN SABANA',
+            'date'       => Carbon::now()->format('d/m/Y H:i') . ' WITA',
             'submission' => $submission
         ];
 
-        // Load view khusus PDF (Kita buat nanti)
         $pdf = Pdf::loadView('pdf.assistance_receipt', $data);
 
-        // Atur ukuran kertas (A4 potrait)
         $pdf->setPaper('a4', 'portrait');
 
         return $pdf;

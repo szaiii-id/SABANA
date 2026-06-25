@@ -19,14 +19,14 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed } from 'vue';
 
 defineProps<{ loading?: boolean }>();
 defineEmits(['logout']);
 
-const firstName = ref('');
+const firstName = ref('Warga');
 
-// 1. Menentukan Waktu
+// ===== TIME GREETING =====
 const timeGreeting = computed(() => {
   const hour = new Date().getHours();
   if (hour >= 5 && hour < 11) return 'Selamat pagi';
@@ -35,36 +35,38 @@ const timeGreeting = computed(() => {
   return 'Selamat malam';
 });
 
-// 2. Pesan Interaktif yang Berubah-ubah (Acak)
+// ===== INTERACTIVE MESSAGE =====
+type TimeKey = 'pagi' | 'siang' | 'sore' | 'malam';
+
 const interactiveMessage = computed(() => {
   const hour = new Date().getHours();
-  let timeKey: 'pagi' | 'siang' | 'sore' | 'malam' = 'malam';
+  let timeKey: TimeKey = 'malam';
   
   if (hour >= 5 && hour < 11) timeKey = 'pagi';
   else if (hour >= 11 && hour < 15) timeKey = 'siang';
   else if (hour >= 15 && hour < 18) timeKey = 'sore';
 
-  const messages = {
+  const messages: Record<TimeKey, string[]> = {
     pagi: [
       'Ada yang bisa kami bantu pagi ini?',
       'Sudah siap mengecek status bantuanmu hari ini?',
-      'Semoga hari ini penuh dengan kabar baik.'
+      'Semoga hari ini penuh dengan kabar baik.',
     ],
     siang: [
       'Jangan lupa istirahat dan makan siang, ya.',
       'Semoga urusanmu dilancarkan siang ini.',
-      'Yuk, cek update terbaru pengajuanmu.'
+      'Yuk, cek update terbaru pengajuanmu.',
     ],
     sore: [
       'Waktunya bersantai sejenak setelah beraktivitas.',
       'Masih semangat kan? Mari lihat progres bantuanmu.',
-      'Semoga harimu menyenangkan sampai sore ini.'
+      'Semoga harimu menyenangkan sampai sore ini.',
     ],
     malam: [
       'Selamat beristirahat bersama keluarga tercinta.',
       'Ada yang mau dicek sebelum tidur?',
-      'Kami siap menjaga data pengajuanmu malam ini.'
-    ]
+      'Kami siap menjaga data pengajuanmu malam ini.',
+    ],
   };
 
   const dailyMessages = messages[timeKey];
@@ -72,19 +74,10 @@ const interactiveMessage = computed(() => {
   return dailyMessages[randomIndex];
 });
 
-onMounted(() => {
-  const userData = localStorage.getItem('user');
-  if (userData) {
-    try {
-      const parsedUser = JSON.parse(userData);
-      const fullName = parsedUser.full_name || parsedUser.name || 'Warga';
-      
-      firstName.value = fullName.split(' ')[0]; 
-    } catch (error) {
-      firstName.value = 'Warga';
-    }
-  } else {
-    firstName.value = 'Warga';
-  }
+// ===== EXPOSE UNTUK PARENT SET FIRST NAME =====
+defineExpose({
+  setFirstName: (name: string) => {
+    firstName.value = name;
+  },
 });
 </script>

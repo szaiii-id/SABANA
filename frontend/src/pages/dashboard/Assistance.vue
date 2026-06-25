@@ -3,7 +3,6 @@ import { ref, reactive, onMounted, computed, watch } from 'vue';
 import { useAssistance } from '../../composables/useAssistance';
 import type { AssistanceProgramSchema, AssistanceSubmissionPayload } from '../../types/assistance';
 
-// Import Komponen Anak
 import AssistanceStep1 from '../../components/assistance/AssistanceStep1.vue';
 import AssistanceStep2 from '../../components/assistance/AssistanceStep2.vue';
 import AssistanceStep3 from '../../components/assistance/AssistanceStep3.vue';
@@ -13,6 +12,20 @@ const {
   submitAssistance, fetchPrograms, fetchRegencies, fetchDistricts, fetchVillages,
   programs, regencies, districts, villages, isLoading 
 } = useAssistance();
+
+// ✅ Fallback-safe UUID generator
+const generateUUID = (): string => {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0;
+    const v = c === 'x' ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
+};
+
+const idempotencyKey = ref(generateUUID());
 
 const currentStep = ref(1);
 const selectedProgram = ref<AssistanceProgramSchema | null>(null);
@@ -44,8 +57,14 @@ const showError = (msg: string) => {
 const handleSelectProgram = (program: AssistanceProgramSchema) => {
   selectedProgram.value = program;
   formData.program_id = program.id;
+  
   formData.dynamicInputs = {};
   formData.files = {};
+  
+  program.inputs.forEach(input => {
+    formData.dynamicInputs[input.key] = '';
+  });
+  
   notification.message = '';
   currentStep.value = 2;
 };
@@ -81,7 +100,7 @@ const handleSubmit = async () => {
   }, 2000);
 
   try {
-    const res = await submitAssistance(formData);
+    const res = await submitAssistance(formData, idempotencyKey.value);
     clearTimeout(processingTimer);
     
     localStorage.removeItem('SABANA_DRAFT');
@@ -89,6 +108,8 @@ const handleSubmit = async () => {
     registrationNumber.value = res.data.registration_number;
     isSuccess.value = true;
     isProcessingLong.value = false;
+    
+    idempotencyKey.value = generateUUID();
   } catch (error: any) {
     clearTimeout(processingTimer);
     isProcessingLong.value = false;
@@ -97,7 +118,6 @@ const handleSubmit = async () => {
   }
 };
 
-// Menentukan judul header dinamis
 const displayHeaderTitle = computed(() => {
   if (currentStep.value === 1) return 'Pilih Program';
   return selectedProgram.value?.title || 'Data Pengajuan';
@@ -187,7 +207,8 @@ const displayHeaderTitle = computed(() => {
           <transition name="page" mode="out-in">
             <AssistanceStep1 
               v-if="currentStep === 1" :programs="programs" 
-              @select="handleSelectProgram" 
+              @select="handleSelectProgram"
+              @refresh="fetchPrograms"
             />
             <AssistanceStep2 
               v-else-if="currentStep === 2 && selectedProgram" 
@@ -222,7 +243,6 @@ const displayHeaderTitle = computed(() => {
 </template>
 
 <style scoped>
-/* Transisi Halaman (Samping) */
 .page-enter-active, .page-leave-active { transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
 .page-enter-from { opacity: 0; transform: translateX(20px); }
 .page-leave-to { opacity: 0; transform: translateX(-20px); }
@@ -230,7 +250,6 @@ const displayHeaderTitle = computed(() => {
 .animate-fade-in { animation: fadeIn 0.6s ease-out forwards; }
 @keyframes fadeIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
 
-/* Custom Scrollbar untuk tampilan modern */
 ::-webkit-scrollbar { width: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: #E2E8F0; border-radius: 10px; }

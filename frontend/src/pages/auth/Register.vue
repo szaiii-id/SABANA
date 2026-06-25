@@ -1,91 +1,209 @@
 <template>
   <AuthLayout maxWidth="xl" :extraPadding="true">
     
+    <!-- Header -->
     <div class="text-center mb-10">
-      <router-link to="/" class="inline-block mb-4">
+      <router-link to="/" class="inline-block mb-4" aria-label="Kembali ke halaman utama">
         <span class="text-3xl font-black italic tracking-tighter text-[#2D6A4F]">SABANA</span>
       </router-link>
-      <h1 class="text-2xl font-[1000] text-gray-800 uppercase tracking-tight mb-2">Registrasi Warga</h1>
-      <p class="text-sm font-bold text-gray-500">Gunakan data kependudukan yang valid.</p>
+      <h1 class="text-2xl font-[1000] text-gray-800 uppercase tracking-tight mb-2">
+        {{ isEditMode ? 'Perbaiki Nomor WhatsApp' : 'Registrasi Warga' }}
+      </h1>
+      <p class="text-sm font-bold text-gray-500">
+        {{ isEditMode ? 'Perbaiki nomor WhatsApp yang salah.' : 'Gunakan data kependudukan yang valid.' }}
+      </p>
     </div>
 
-    <div v-if="safeAuthError" class="mb-6 p-4 bg-red-50 border border-red-200 rounded-2xl flex items-start gap-3 animate-pulse">
-      <span class="text-red-500 font-black">⚠</span>
-      <p class="text-xs font-bold text-red-600 leading-relaxed">{{ safeAuthError }}</p>
-    </div>
+    <!-- Edit Mode Alert -->
+    <Transition 
+      enter-active-class="transition duration-300 ease-out" 
+      enter-from-class="transform -translate-y-2 opacity-0" 
+      enter-to-class="transform translate-y-0 opacity-100"
+    >
+      <div v-if="isEditMode" class="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-2xl flex items-start gap-3" role="alert">
+        <span class="text-amber-500 font-black text-lg leading-none mt-0.5" aria-hidden="true">✎</span>
+        <div>
+          <h3 class="text-[10px] font-black text-amber-800 uppercase tracking-widest mb-1">Perbaiki Nomor WhatsApp</h3>
+          <p class="text-xs font-bold text-amber-700 leading-relaxed">OTP sebelumnya gagal terkirim. Silakan perbaiki nomor WhatsApp Anda.</p>
+        </div>
+      </div>
+    </Transition>
 
-    <form @submit.prevent="onSubmit" class="space-y-2">
+    <!-- Loading Prefill -->
+    <Transition 
+      enter-active-class="transition duration-300 ease-out" 
+      enter-from-class="transform -translate-y-2 opacity-0" 
+      enter-to-class="transform translate-y-0 opacity-100"
+    >
+      <div v-if="isLoadingPrefill" class="mb-6 p-4 bg-gray-50 border border-gray-200 rounded-2xl flex items-center justify-center gap-3" role="status">
+        <svg class="animate-spin h-5 w-5 text-[#2D6A4F]" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" aria-hidden="true">
+          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+        </svg>
+        <span class="text-xs font-bold text-gray-500">Memuat data pendaftaran...</span>
+      </div>
+    </Transition>
+
+    <!-- Server Error Alert -->
+    <Transition 
+      enter-active-class="transition duration-300 ease-out" 
+      enter-from-class="transform -translate-y-2 opacity-0" 
+      enter-to-class="transform translate-y-0 opacity-100"
+    >
+      <div v-if="safeAuthError" class="mb-6 p-4 bg-red-50 border border-red-200 rounded-2xl flex items-start gap-3" role="alert">
+        <span class="text-red-500 font-black text-lg leading-none mt-0.5" aria-hidden="true">⚠</span>
+        <div>
+          <h3 class="text-[10px] font-black text-red-800 uppercase tracking-widest mb-1">Gagal Registrasi</h3>
+          <p class="text-xs font-bold text-red-600 leading-relaxed">{{ safeAuthError }}</p>
+        </div>
+      </div>
+    </Transition>
+
+    <form @submit.prevent="onSubmit" class="space-y-2" novalidate>
+      
+      <!-- NIK & No. KK -->
       <div class="grid grid-cols-1 md:grid-cols-2 gap-x-6">
-        <div class="relative mb-5">
-          <input v-model="formData.nik" @input="formatNumeric('nik', 16)" @blur="v$.nik.$touch()" type="text" inputmode="numeric" placeholder=" " :class="['peer w-full bg-gray-50 border-2 rounded-2xl px-4 py-3 outline-none transition-all font-bold text-gray-800', v$.nik.$error ? 'border-red-500 bg-red-50' : 'border-gray-200 focus:border-[#2D6A4F] focus:bg-white']" />
-          <label :class="['absolute left-4 top-3.5 text-xs font-black uppercase tracking-widest transition-all peer-placeholder-shown:top-3.5 peer-placeholder-shown:text-gray-400 peer-focus:-top-2.5 peer-focus:text-[10px] peer-focus:bg-white peer-focus:px-1 peer-valid:-top-2.5 peer-valid:text-[10px] peer-valid:bg-white peer-valid:px-1', v$.nik.$error ? 'text-red-500' : 'text-[#2D6A4F]']">NIK (16 Digit)</label>
-          <p v-if="v$.nik.$error" class="text-[10px] font-bold text-red-500 mt-1.5 ml-2 text-left animate-pulse">{{ v$.nik.$errors[0].$message }}</p>
-        </div>
-
-        <div class="relative mb-5">
-          <input v-model="formData.family_card_number" @input="formatNumeric('family_card_number', 16)" @blur="v$.family_card_number.$touch()" type="text" inputmode="numeric" placeholder=" " :class="['peer w-full bg-gray-50 border-2 rounded-2xl px-4 py-3 outline-none transition-all font-bold text-gray-800', v$.family_card_number.$error ? 'border-red-500 bg-red-50' : 'border-gray-200 focus:border-[#2D6A4F] focus:bg-white']" />
-          <label :class="['absolute left-4 top-3.5 text-xs font-black uppercase tracking-widest transition-all peer-placeholder-shown:top-3.5 peer-placeholder-shown:text-gray-400 peer-focus:-top-2.5 peer-focus:text-[10px] peer-focus:bg-white peer-focus:px-1 peer-valid:-top-2.5 peer-valid:text-[10px] peer-valid:bg-white peer-valid:px-1', v$.family_card_number.$error ? 'text-red-500' : 'text-[#2D6A4F]']">Nomor KK</label>
-          <p v-if="v$.family_card_number.$error" class="text-[10px] font-bold text-red-500 mt-1.5 ml-2 text-left animate-pulse">{{ v$.family_card_number.$errors[0].$message }}</p>
-        </div>
+        <FormField 
+          v-model="formData.nik"
+          label="NIK (16 Digit)"
+          :maxlength="16"
+          :disabled="isEditMode"
+          :error="errors.nik.isError"
+          :error-message="errors.nik.message"
+          @update:model-value="(val: string) => formatNumeric('nik', 16, val)"
+          @blur="v$.nik.$touch()"
+        />
+        <FormField 
+          v-model="formData.family_card_number"
+          label="Nomor KK"
+          :maxlength="16"
+          :disabled="isEditMode"
+          :error="errors.family_card_number.isError"
+          :error-message="errors.family_card_number.message"
+          @update:model-value="(val: string) => formatNumeric('family_card_number', 16, val)"
+          @blur="v$.family_card_number.$touch()"
+        />
       </div>
 
-      <div class="relative mb-5">
-        <input v-model.trim="formData.full_name" @blur="v$.full_name.$touch()" type="text" placeholder=" " :class="['peer w-full bg-gray-50 border-2 rounded-2xl px-4 py-3 outline-none transition-all font-bold text-gray-800', v$.full_name.$error ? 'border-red-500 bg-red-50' : 'border-gray-200 focus:border-[#2D6A4F] focus:bg-white']" />
-        <label :class="['absolute left-4 top-3.5 text-xs font-black uppercase tracking-widest transition-all peer-placeholder-shown:top-3.5 peer-placeholder-shown:text-gray-400 peer-focus:-top-2.5 peer-focus:text-[10px] peer-focus:bg-white peer-focus:px-1 peer-valid:-top-2.5 peer-valid:text-[10px] peer-valid:bg-white peer-valid:px-1', v$.full_name.$error ? 'text-red-500' : 'text-[#2D6A4F]']">Nama Lengkap (Sesuai KTP)</label>
-        <p v-if="v$.full_name.$error" class="text-[10px] font-bold text-red-500 mt-1.5 ml-2 text-left animate-pulse">{{ v$.full_name.$errors[0].$message }}</p>
-      </div>
+      <!-- Nama Lengkap -->
+      <FormField 
+        v-model="formData.full_name"
+        label="Nama Lengkap (Sesuai KTP)"
+        :disabled="isEditMode"
+        :error="errors.full_name.isError"
+        :error-message="errors.full_name.message"
+        @blur="v$.full_name.$touch()"
+      />
 
-      <div class="relative mb-5">
-        <input v-model="formData.whatsapp_number" @input="formatNumeric('whatsapp_number', 15)" @blur="v$.whatsapp_number.$touch()" type="tel" inputmode="numeric" placeholder=" " :class="['peer w-full bg-gray-50 border-2 rounded-2xl px-4 py-3 outline-none transition-all font-bold text-gray-800', v$.whatsapp_number.$error ? 'border-red-500 bg-red-50' : 'border-gray-200 focus:border-[#2D6A4F] focus:bg-white']" />
-        <label :class="['absolute left-4 top-3.5 text-xs font-black uppercase tracking-widest transition-all peer-placeholder-shown:top-3.5 peer-placeholder-shown:text-gray-400 peer-focus:-top-2.5 peer-focus:text-[10px] peer-focus:bg-white peer-focus:px-1 peer-valid:-top-2.5 peer-valid:text-[10px] peer-valid:bg-white peer-valid:px-1', v$.whatsapp_number.$error ? 'text-red-500' : 'text-[#2D6A4F]']">Nomor WhatsApp Aktif</label>
-        <p v-if="v$.whatsapp_number.$error" class="text-[10px] font-bold text-red-500 mt-1.5 ml-2 text-left animate-pulse">{{ v$.whatsapp_number.$errors[0].$message }}</p>
-      </div>
+      <!-- Nomor WhatsApp -->
+      <FormField 
+        v-model="formData.whatsapp_number"
+        label="Nomor WhatsApp Aktif"
+        type="tel"
+        :maxlength="15"
+        :error="errors.whatsapp_number.isError"
+        :error-message="errors.whatsapp_number.message"
+        @update:model-value="(val: string) => formatNumeric('whatsapp_number', 15, val)"
+        @blur="v$.whatsapp_number.$touch()"
+      />
 
+      <!-- PIN & Konfirmasi -->
       <div class="grid grid-cols-1 md:grid-cols-2 gap-x-6 pb-2">
-        <div class="relative mb-5">
-          <input v-model="formData.pin" @input="formatNumeric('pin', 6)" @blur="v$.pin.$touch()" type="password" inputmode="numeric" placeholder=" " :class="['peer w-full bg-gray-50 border-2 rounded-2xl px-4 py-3 outline-none transition-all font-bold text-center tracking-[0.5em] text-xl text-gray-800', v$.pin.$error ? 'border-red-500 bg-red-50' : 'border-gray-200 focus:border-[#D4A373] focus:bg-white']" />
-          <label :class="['absolute left-4 top-3.5 text-xs font-black uppercase tracking-widest transition-all peer-placeholder-shown:top-3.5 peer-placeholder-shown:text-gray-400 peer-focus:-top-2.5 peer-focus:text-[10px] peer-focus:bg-white peer-focus:px-1 peer-valid:-top-2.5 peer-valid:text-[10px] peer-valid:bg-white peer-valid:px-1', v$.pin.$error ? 'text-red-500' : 'text-[#D4A373]']">Buat PIN (6 Digit)</label>
-          <p v-if="v$.pin.$error" class="text-[10px] font-bold text-red-500 mt-1.5 ml-2 text-left animate-pulse">{{ v$.pin.$errors[0].$message }}</p>
-        </div>
-
-        <div class="relative mb-5">
-          <input v-model="formData.pin_confirmation" @input="formatNumeric('pin_confirmation', 6)" @blur="v$.pin_confirmation.$touch()" type="password" inputmode="numeric" placeholder=" " :class="['peer w-full bg-gray-50 border-2 rounded-2xl px-4 py-3 outline-none transition-all font-bold text-center tracking-[0.5em] text-xl text-gray-800', v$.pin_confirmation.$error ? 'border-red-500 bg-red-50' : 'border-gray-200 focus:border-[#D4A373] focus:bg-white']" />
-          <label :class="['absolute left-4 top-3.5 text-xs font-black uppercase tracking-widest transition-all peer-placeholder-shown:top-3.5 peer-placeholder-shown:text-gray-400 peer-focus:-top-2.5 peer-focus:text-[10px] peer-focus:bg-white peer-focus:px-1 peer-valid:-top-2.5 peer-valid:text-[10px] peer-valid:bg-white peer-valid:px-1', v$.pin_confirmation.$error ? 'text-red-500' : 'text-[#D4A373]']">Konfirmasi PIN</label>
-          <p v-if="v$.pin_confirmation.$error" class="text-[10px] font-bold text-red-500 mt-1.5 ml-2 text-left animate-pulse">{{ v$.pin_confirmation.$errors[0].$message }}</p>
-        </div>
+        <FormField 
+          v-model="formData.pin"
+          label="Buat PIN (6 Digit)"
+          type="password"
+          :maxlength="6"
+          input-class="text-center tracking-[0.5em] text-xl"
+          label-color="text-[#D4A373]"
+          focus-color="focus:border-[#D4A373]"
+          :error="errors.pin.isError"
+          :error-message="errors.pin.message"
+          @update:model-value="(val: string) => formatNumeric('pin', 6, val)"
+          @blur="v$.pin.$touch()"
+        />
+        <FormField 
+          v-model="formData.pin_confirmation"
+          label="Konfirmasi PIN"
+          type="password"
+          :maxlength="6"
+          input-class="text-center tracking-[0.5em] text-xl"
+          label-color="text-[#D4A373]"
+          focus-color="focus:border-[#D4A373]"
+          :error="errors.pin_confirmation.isError"
+          :error-message="errors.pin_confirmation.message"
+          @update:model-value="(val: string) => formatNumeric('pin_confirmation', 6, val)"
+          @blur="v$.pin_confirmation.$touch()"
+        />
       </div>
 
-      <div :class="['mb-6 bg-gray-50/50 border rounded-2xl p-4 flex items-start gap-4 transition-colors', v$.agree_terms.$error ? 'border-red-200 bg-red-50/30' : 'border-gray-100']">
+      <!-- Agreement Checkbox (hanya saat registrasi baru) -->
+      <div 
+        v-if="!isEditMode"
+        :class="[
+          'mb-6 rounded-2xl p-4 flex items-start gap-4 transition-all duration-300',
+          v$.agree_terms.$error 
+            ? 'bg-red-50/50 border-2 border-red-200' 
+            : 'bg-gray-50/50 border border-gray-100'
+        ]"
+      >
         <div class="relative flex items-center justify-center mt-0.5 shrink-0">
           <input 
+            id="agree-terms"
             type="checkbox" 
             v-model="formData.agree_terms" 
             @change="v$.agree_terms.$touch()"
             class="peer appearance-none w-5 h-5 border-2 border-gray-300 rounded-lg checked:bg-[#2D6A4F] checked:border-[#2D6A4F] transition-all cursor-pointer"
+            aria-describedby="agree-terms-error"
           />
-          <svg class="absolute w-3.5 h-3.5 text-white opacity-0 peer-checked:opacity-100 transition-opacity pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="4">
+          <svg class="absolute w-3.5 h-3.5 text-white opacity-0 peer-checked:opacity-100 transition-opacity pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="4" aria-hidden="true">
             <path d="M5 13l4 4L19 7"></path>
           </svg>
         </div>
         <div class="flex-1">
-          <label class="text-[10px] sm:text-[11px] font-medium text-gray-500 leading-relaxed cursor-pointer select-none block" @click="formData.agree_terms = !formData.agree_terms; v$.agree_terms.$touch()">
-            Saya menyatakan bahwa data kependudukan (NIK & No. KK) yang saya masukkan adalah <strong class="text-gray-700">benar dan milik saya pribadi</strong>. Saya mengizinkan SABANA untuk memprosesnya sesuai dengan <a href="#" class="text-[#2D6A4F] hover:underline font-black whitespace-nowrap">Kebijakan Privasi</a>.
+          <label 
+            for="agree-terms"
+            class="text-[10px] sm:text-[11px] font-medium text-gray-500 leading-relaxed cursor-pointer select-none block" 
+          >
+            Saya menyatakan bahwa data kependudukan (NIK & No. KK) yang saya masukkan adalah <strong class="text-gray-700">benar dan milik saya pribadi</strong>. Saya mengizinkan SABANA untuk memprosesnya sesuai dengan 
+            <a href="#" class="text-[#2D6A4F] hover:underline font-black whitespace-nowrap" @click.stop>Kebijakan Privasi</a>.
           </label>
-          <p v-if="v$.agree_terms.$error" class="text-[10px] font-bold text-red-500 mt-2 animate-pulse">⚠ Anda harus menyetujui syarat & ketentuan untuk melanjutkan.</p>
+          <Transition enter-active-class="transition duration-200 ease-out" enter-from-class="transform -translate-y-1 opacity-0" enter-to-class="transform translate-y-0 opacity-100">
+            <p v-if="v$.agree_terms.$error" id="agree-terms-error" class="text-[10px] font-bold text-red-500 mt-2" role="alert">
+              ⚠ Anda harus menyetujui syarat & ketentuan untuk melanjutkan.
+            </p>
+          </Transition>
         </div>
       </div>
 
-      <button :disabled="isSubmitting" type="submit" class="w-full py-4 bg-[#2D6A4F] text-white rounded-2xl font-black uppercase tracking-widest text-sm hover:bg-[#1b4332] hover:shadow-[0_10px_20px_rgba(45,106,79,0.3)] hover:-translate-y-0.5 transition-all duration-300 disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center mt-2">
-        <svg v-if="isSubmitting" class="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-        {{ isSubmitting ? 'MEMPROSES...' : 'DAFTAR SEKARANG' }}
-      </button>
-
+      <!-- Submit Button -->
+      <SubmitButton 
+        :is-submitting="isSubmitting || isLoadingPrefill"
+        :label="isEditMode ? 'SIMPAN & KIRIM OTP BARU' : 'DAFTAR SEKARANG'"
+        loading-label="MEMPROSES..." 
+      />
     </form>
 
-    <div class="mt-8 text-center">
+    <div v-if="isEditMode" class="mt-6 text-center">
+      <button 
+        type="button"
+        @click="goBackToVerify"
+        class="text-xs font-bold text-gray-400 hover:text-[#D4A373] transition-colors uppercase tracking-wider"
+      >
+        Kembali ke Verifikasi
+      </button>
+    </div>
+
+    <!-- Login Link (hanya saat registrasi baru) -->
+    <div v-if="!isEditMode" class="mt-8 text-center">
       <p class="text-xs font-bold text-gray-500">
         Sudah terdaftar di SABANA? 
-        <router-link :to="{ name: 'login' }" class="text-[#D4A373] hover:text-[#2D6A4F] transition-colors ml-1 uppercase tracking-wider font-black">Masuk di sini</router-link>
+        <router-link 
+          :to="{ name: 'login' }" 
+          class="text-[#D4A373] hover:text-[#2D6A4F] transition-colors ml-1 uppercase tracking-wider font-black"
+        >
+          Masuk di sini
+        </router-link>
       </p>
     </div>
 
@@ -93,50 +211,197 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue';
-import { useRouter } from 'vue-router';
+import { ref, computed, onMounted, onUnmounted } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
 import { useVuelidate } from '@vuelidate/core';
 import { required, sameAs, helpers } from '@vuelidate/validators';
-
-import type { RegisterPayload } from '../../types/auth'; 
+import type { RegisterPayload } from '../../types/auth';
 import { useAuth } from '../../composables/useAuth';
-import { getSafeErrorMessage } from '../../utils/errorHandler'; 
-import AuthLayout from '../../layouts/AuthLayout.vue'; 
+import { getSafeErrorMessage } from '../../utils/errorHandler';
+import AuthLayout from '../../layouts/AuthLayout.vue';
+import FormField from '../../components/auth/FormField.vue';
+import SubmitButton from '../../components/auth/SubmitButton.vue';
+import api from '../../api/axios';
 
+// ===== TYPES =====
+type NumericFields = 'nik' | 'family_card_number' | 'whatsapp_number' | 'pin' | 'pin_confirmation';
+
+interface ErrorState {
+  isError: boolean;
+  message: string;
+}
+
+interface FormErrors {
+  nik: ErrorState;
+  family_card_number: ErrorState;
+  full_name: ErrorState;
+  whatsapp_number: ErrorState;
+  pin: ErrorState;
+  pin_confirmation: ErrorState;
+}
+
+// ===== COMPOSABLES =====
+const route = useRoute();
 const router = useRouter();
 const { isSubmitting, authError, submitRegistration } = useAuth();
 
-const formData = ref<RegisterPayload & { agree_terms: boolean }>({
-  nik: '', family_card_number: '', full_name: '', whatsapp_number: '', pin: '', pin_confirmation: '', agree_terms: false
+// ===== STATE =====
+const isEditMode = computed<boolean>(() => route.query.edit === 'true');
+const isLoadingPrefill = ref<boolean>(false);
+const abortController = ref<AbortController | null>(null);
+
+const getInitialFormData = (): RegisterPayload & { agree_terms: boolean } => ({
+  nik: '',
+  family_card_number: '',
+  full_name: '',
+  whatsapp_number: '',
+  pin: '',
+  pin_confirmation: '',
+  agree_terms: false,
 });
 
-const safeAuthError = computed(() => getSafeErrorMessage(authError.value));
+const formData = ref<RegisterPayload & { agree_terms: boolean }>(getInitialFormData());
 
-// PERBAIKAN TYPESCRIPT: Tipe khusus untuk field yang berupa angka saja
-type NumericFields = 'nik' | 'family_card_number' | 'whatsapp_number' | 'pin' | 'pin_confirmation';
+// ===== LIFECYCLE =====
+onMounted(() => {
+  if (isEditMode.value) {
+    loadPrefillData();
+  }
+});
 
-const formatNumeric = (field: NumericFields, maxLength: number) => {
-  let val = String(formData.value[field]).replace(/\D/g, '');
-  (formData.value as any)[field] = val.substring(0, maxLength);
+onUnmounted(() => {
+  if (abortController.value) {
+    abortController.value.abort();
+  }
+  
+  formData.value = getInitialFormData();
+  v$.value.$reset();
+});
+
+// ===== PREFILL LOGIC =====
+const loadPrefillData = async (): Promise<void> => {
+  const nik = route.query.nik as string;
+  
+  if (!nik) {
+    router.replace({ name: 'register' });
+    return;
+  }
+
+  abortController.value = new AbortController();
+  isLoadingPrefill.value = true;
+
+  try {
+    const response = await api.get(`auth/prefill-registration?nik=${nik}`, {
+      signal: abortController.value.signal,
+    });
+    
+    const data = response.data?.data || response.data;
+    
+    formData.value.nik = data.nik || nik;
+    formData.value.family_card_number = data.family_card_number || '';
+    formData.value.full_name = data.full_name || '';
+    formData.value.whatsapp_number = data.whatsapp_number || (route.query.wa as string) || '';
+    formData.value.agree_terms = true;
+  } catch (error: unknown) {
+    if (error instanceof DOMException && error.name === 'AbortError') {
+      return;
+    }
+    
+    const axiosError = error as { response?: { data?: { message?: string } } };
+    authError.value = axiosError.response?.data?.message || 'Gagal memuat data pendaftaran.';
+  } finally {
+    isLoadingPrefill.value = false;
+    abortController.value = null;
+  }
 };
 
-const wjb = helpers.withMessage('Wajib diisi', required);
-const lkp16 = helpers.withMessage('Harus 16 digit', (val: string) => val.length === 16);
-const lkp6 = helpers.withMessage('Harus 6 digit', (val: string) => val.length === 6);
+// ===== COMPUTED =====
+const safeAuthError = computed<string>(() => getSafeErrorMessage(authError.value));
 
+const createErrorState = (fieldName: keyof typeof v$.value): ErrorState => {
+  const field = v$.value[fieldName] as { $error: boolean; $errors: Array<{ $message?: string | { toString(): string } }> } | undefined;
+  
+  if (!field) {
+    return { isError: false, message: '' };
+  }
+  
+  const firstError = field.$errors[0];
+  let message = '';
+  
+  if (firstError?.$message) {
+    message = typeof firstError.$message === 'string' 
+      ? firstError.$message 
+      : firstError.$message.toString();
+  }
+  
+  return {
+    isError: field.$error,
+    message,
+  };
+};
+
+const errors = computed<FormErrors>(() => ({
+  nik: createErrorState('nik'),
+  family_card_number: createErrorState('family_card_number'),
+  full_name: createErrorState('full_name'),
+  whatsapp_number: createErrorState('whatsapp_number'),
+  pin: createErrorState('pin'),
+  pin_confirmation: createErrorState('pin_confirmation'),
+}));
+
+// ===== FIELD HELPERS =====
+const formatNumeric = (field: NumericFields, maxLength: number, value: string): void => {
+  const cleaned = value.replace(/\D/g, '').substring(0, maxLength);
+  formData.value[field] = cleaned;
+};
+
+// ===== VALIDATION RULES =====
 const rules = computed(() => ({
-  nik: { required: wjb, length: lkp16 },
-  family_card_number: { required: wjb, length: lkp16 },
-  full_name: { required: wjb },
-  whatsapp_number: { required: wjb },
-  pin: { required: wjb, length: lkp6 },
-  pin_confirmation: { required: wjb, sameAs: helpers.withMessage('PIN tidak cocok', sameAs(formData.value.pin)) },
-  agree_terms: { sameAs: helpers.withMessage('Anda harus menyetujui syarat & ketentuan', sameAs(true)) }
+  nik: { 
+    required: helpers.withMessage('Wajib diisi', required), 
+    length: helpers.withMessage('Harus tepat 16 digit', (val: string) => val.length === 16),
+  },
+  family_card_number: { 
+    required: helpers.withMessage('Wajib diisi', required), 
+    length: helpers.withMessage('Harus tepat 16 digit', (val: string) => val.length === 16),
+  },
+  full_name: { 
+    required: helpers.withMessage('Wajib diisi', required),
+  },
+  whatsapp_number: { 
+    required: helpers.withMessage('Wajib diisi', required), 
+    minLength: helpers.withMessage('Minimal 10 digit', (val: string) => val.length >= 10),
+  },
+  pin: { 
+    required: helpers.withMessage('Wajib diisi', required), 
+    length: helpers.withMessage('Harus tepat 6 digit', (val: string) => val.length === 6),
+  },
+  pin_confirmation: { 
+    required: helpers.withMessage('Wajib diisi', required), 
+    sameAs: helpers.withMessage('PIN tidak cocok', sameAs(formData.value.pin)),
+  },
+  agree_terms: isEditMode.value 
+    ? {} 
+    : { 
+        sameAs: helpers.withMessage('Anda harus menyetujui syarat & ketentuan', sameAs(true)),
+      },
 }));
 
 const v$ = useVuelidate(rules, formData);
 
-const onSubmit = async () => {
+// ===== NAVIGATION =====
+const goBackToVerify = (): void => {
+  router.push({ 
+    name: 'verify-otp', 
+    query: { 
+      nik: formData.value.nik, 
+      wa: formData.value.whatsapp_number,
+    },
+  });
+};
+
+// ===== SUBMIT =====
+const onSubmit = async (): Promise<void> => {
   const isFormValid = await v$.value.$validate();
   if (!isFormValid) return;
 
@@ -144,7 +409,13 @@ const onSubmit = async () => {
   const result = await submitRegistration(payloadToSend as RegisterPayload);
   
   if (result.success) {
-    router.replace({ name: 'verify-otp', query: { nik: formData.value.nik, wa: formData.value.whatsapp_number } });
+    await router.replace({ 
+      name: 'verify-otp', 
+      query: { 
+        nik: formData.value.nik, 
+        wa: formData.value.whatsapp_number,
+      },
+    });
   }
 };
 </script>

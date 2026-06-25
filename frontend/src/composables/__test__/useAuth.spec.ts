@@ -1,312 +1,382 @@
-// src/composables/__test__/useAuth.spec.ts
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+// ===== [IMPORTS] =====
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { ref } from 'vue';
 import { useAuth } from '../useAuth';
 import AuthService from '../../services/AuthService';
+import type { RegisterPayload, LoginPayload, LoginData } from '../../types/auth';
 
-// ============================================================
-// LOCALSTORAGE MOCK
-// ============================================================
-let store: Record<string, string> = {};
-
-const localStorageMock = {
-  getItem: vi.fn((key: string) => store[key] || null),
-  setItem: vi.fn((key: string, value: string) => { store[key] = value; }),
-  removeItem: vi.fn((key: string) => { delete store[key]; }),
-  clear: vi.fn(() => { store = {}; }),
-};
-vi.stubGlobal('localStorage', localStorageMock);
-
-// ============================================================
-// MOCKS
-// ============================================================
-const pushMock = vi.fn();
-vi.mock('vue-router', () => ({
-  useRouter: () => ({ push: pushMock }),
-}));
-
+// ===== [MOCKS] =====
 vi.mock('../../services/AuthService', () => ({
   default: {
     registerUser: vi.fn(),
     loginUser: vi.fn(),
     logoutUser: vi.fn(),
+    verifyOtp: vi.fn(),
+    resendOtp: vi.fn(),
+    requestForgotPinOtp: vi.fn(),
+    resetPin: vi.fn(),
   },
 }));
 
-// ============================================================
-// TEST SUITE
-// ============================================================
-describe('useAuth - Professional QA Test Suite', () => {
+const mockPush = vi.fn().mockResolvedValue(undefined);
+const mockReplace = vi.fn().mockResolvedValue(undefined);
 
+vi.mock('vue-router', () => ({
+  useRouter: () => ({
+    push: mockPush,
+    replace: mockReplace,
+  }),
+}));
+
+// ===== [MOCK localStorage] =====
+const localStorageMock = (() => {
+  let store: Record<string, string> = {};
+  return {
+    getItem: vi.fn((key: string) => store[key] ?? null),
+    setItem: vi.fn((key: string, value: string) => { store[key] = value; }),
+    removeItem: vi.fn((key: string) => { delete store[key]; }),
+    clear: vi.fn(() => { store = {}; }),
+  };
+})();
+
+Object.defineProperty(globalThis, 'localStorage', {
+  value: localStorageMock,
+  writable: true,
+});
+
+// ===== [HELPER - MOCK DATA FACTORY] =====
+const validData = {
+  registerResponse: () => ({
+    status: 'success',
+    message: 'Registrasi berhasil. Silakan verifikasi OTP.',
+    data: {
+      nik: '6372010101010001',
+      family_card_number: '6372010101010002',
+      full_name: 'John Doe',
+      whatsapp_number: '6281234567890',
+      is_verified: false,
+      last_login: null,
+    },
+  }),
+
+  loginResponse: (overrides?: Partial<LoginData>) => ({
+    status: 'success',
+    message: 'Login berhasil.',
+    data: {
+      citizen: {
+        nik: '6372010101010001',
+        family_card_number: '6372010101010002',
+        full_name: 'John Doe',
+        whatsapp_number: '6281234567890',
+        is_verified: true,
+        last_login: '2025-01-15T10:30:00.000Z',
+      },
+      token: 'jwt-token-abc-xyz-secure',
+      require_pin_change: false,
+      ...overrides,
+    },
+  }),
+
+  error422: (errors: Record<string, string[]>) => ({
+    response: {
+      status: 422,
+      data: {
+        status: 'error',
+        message: 'Validasi gagal.',
+        errors,
+      },
+    },
+  }),
+
+  networkError: () => {
+    const error = new Error('Koneksi terputus. Periksa jaringan internet Anda.') as any;
+    error.isNetworkError = true;
+    error.originalError = new Error('Network Error');
+    return error;
+  },
+};
+
+const validRegisterPayload = (): RegisterPayload => ({
+  nik: '6372010101010001',
+  family_card_number: '6372010101010002',
+  full_name: 'John Doe',
+  whatsapp_number: '6281234567890',
+  pin: '123456',
+  pin_confirmation: '123456',
+});
+
+const validLoginPayload = (): LoginPayload => ({
+  nik: '6372010101010001',
+  pin: '123456',
+});
+
+// ===== [TEST SUITE] =====
+describe('useAuth Composable', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    store = {}; // ✅ Reset store manual
+    localStorageMock.clear();
   });
 
-  // ============================================================
-  // INITIAL STATE
-  // ============================================================
-  describe('Initial State', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
 
-    it('[INIT-01] isSubmitting default false', () => {
-      const { isSubmitting } = useAuth();
-      expect(isSubmitting.value).toBe(false);
-    });
+  // ===== [1. HAPPY PATH — 5 test] =====
+  describe('Happy Path — Registrasi & Login Sukses', () => {
+    it('submitRegistration: berhasil dengan data valid, mengembalikan phone', async () => {
+      vi.mocked(AuthService.registerUser).mockResolvedValue(validData.registerResponse());
+      const { submitRegistration, authError } = useAuth();
 
-    it('[INIT-02] authError default kosong', () => {
-      const { authError } = useAuth();
+      const result = await submitRegistration(validRegisterPayload());
+
+      expect(result.success).toBe(true);
+      expect(result.phone).toBe('6281234567890');
       expect(authError.value).toBe('');
     });
+
+    it('submitLogin: sukses login, token tersimpan di localStorage', async () => {
+      vi.mocked(AuthService.loginUser).mockResolvedValue(validData.loginResponse());
+      const { submitLogin } = useAuth();
+
+      const result = await submitLogin(validLoginPayload());
+
+      expect(result.success).toBe(true);
+      expect(result.require_pin_change).toBe(false);
+      expect(localStorageMock.setItem).toHaveBeenCalledWith('sabana_token', 'jwt-token-abc-xyz-secure');
+    });
+
+    it('isAuthenticated: return true saat token tersimpan', () => {
+      localStorageMock.setItem('sabana_token', 'existing-token');
+      const { isAuthenticated } = useAuth();
+      expect(isAuthenticated()).toBe(true);
+    });
+
+    it('getStoredToken: mengembalikan token yang tersimpan', () => {
+      localStorageMock.setItem('sabana_token', 'my-secret-token');
+      const { getStoredToken } = useAuth();
+      expect(getStoredToken()).toBe('my-secret-token');
+    });
+
+    it('handleLogout: menghapus token, redirect ke home', async () => {
+      localStorageMock.setItem('sabana_token', 'logout-token');
+      vi.mocked(AuthService.logoutUser).mockResolvedValue({
+        status: 'success',
+        message: 'Logout berhasil.',
+      });
+
+      const { handleLogout } = useAuth();
+      await handleLogout();
+
+      expect(localStorageMock.removeItem).toHaveBeenCalledWith('sabana_token');
+      expect(mockPush).toHaveBeenCalledWith({ name: 'home' });
+    });
   });
 
-  // ============================================================
-  // submitRegistration
-  // ============================================================
-  describe('submitRegistration', () => {
+  // ===== [2. SAD PATH — 3 test] =====
+  describe('Sad Path — Error Handling', () => {
+    it('submitRegistration: gagal → authError terisi', async () => {
+      vi.mocked(AuthService.registerUser).mockRejectedValue(
+        validData.error422({ nik: ['NIK sudah terdaftar di sistem.'] })
+      );
 
-    const payload = {
-      nik: '6301234567890123',
-      family_card_number: '6301234567890123',
-      full_name: 'John Doe',
-      whatsapp_number: '08123456789',
-      pin: '123456',
-      pin_confirmation: '123456',
-    };
+      const { submitRegistration, authError } = useAuth();
+      const result = await submitRegistration(validRegisterPayload());
 
-    it('[REG-01] Memanggil AuthService.registerUser', async () => {
-      const { submitRegistration } = useAuth();
-      (AuthService.registerUser as any).mockResolvedValue({});
-
-      await submitRegistration(payload);
-
-      expect(AuthService.registerUser).toHaveBeenCalledWith(payload);
+      expect(result.success).toBe(false);
+      expect(authError.value).toBe('Validasi gagal.');
     });
 
-    it('[REG-02] Return success true dan phone', async () => {
-      const { submitRegistration } = useAuth();
-      (AuthService.registerUser as any).mockResolvedValue({});
+    it('submitLogin: 422 belum verifikasi → needsVerification=true', async () => {
+      vi.mocked(AuthService.loginUser).mockRejectedValue(
+        validData.error422({
+          is_verified: ['Akun Anda belum diverifikasi. Silakan cek WA.'],
+          whatsapp_number: ['6281234567890'],
+        })
+      );
 
-      const result = await submitRegistration(payload);
+      const { submitLogin } = useAuth();
+      const result = await submitLogin(validLoginPayload());
 
-      expect(result).toEqual({ success: true, phone: '08123456789' });
+      expect(result.success).toBe(false);
+      expect(result.needsVerification).toBe(true);
+      expect(result.message).toBe('Akun Anda belum diverifikasi. Silakan cek WA.');
     });
 
-    it('[REG-03] isSubmitting false setelah sukses', async () => {
+    it('submitLogin: 422 kredensial salah → authError terisi', async () => {
+      vi.mocked(AuthService.loginUser).mockRejectedValue(
+        validData.error422({ nik: ['Kombinasi NIK dan PIN tidak cocok.'] })
+      );
+
+      const { submitLogin, authError } = useAuth();
+      const result = await submitLogin(validLoginPayload());
+
+      expect(result.success).toBe(false);
+      expect(authError.value).toBe('Kombinasi NIK dan PIN tidak cocok.');
+    });
+  });
+
+  // ===== [3. BOUNDARY — 2 test] =====
+  describe('Boundary — Batasan State', () => {
+    it('isSubmitting: true selama proses registrasi berlangsung', async () => {
+      vi.mocked(AuthService.registerUser).mockImplementation(
+        () => new Promise(resolve => setTimeout(() => resolve(validData.registerResponse()), 100))
+      );
+
       const { submitRegistration, isSubmitting } = useAuth();
-      (AuthService.registerUser as any).mockResolvedValue({});
+      const promise = submitRegistration(validRegisterPayload());
 
-      await submitRegistration(payload);
-
+      expect(isSubmitting.value).toBe(true);
+      await promise;
       expect(isSubmitting.value).toBe(false);
     });
 
-    it('[REG-04] authError kosong setelah sukses', async () => {
+    it('isSubmitting: tetap false jika error immediate (network)', async () => {
+      vi.mocked(AuthService.loginUser).mockRejectedValue(validData.networkError());
+
+      const { submitLogin, isSubmitting } = useAuth();
+      await submitLogin(validLoginPayload());
+
+      expect(isSubmitting.value).toBe(false);
+    });
+  });
+
+  // ===== [4. EDGE CASE — 1 test] =====
+  describe('Edge Case — Response Tidak Lengkap', () => {
+    it('submitLogin: response tanpa token & citizen → throw error', async () => {
+      vi.mocked(AuthService.loginUser).mockResolvedValue({
+        status: 'success',
+        message: 'OK',
+        data: null as any,
+      });
+
+      const { submitLogin, authError } = useAuth();
+      const result = await submitLogin(validLoginPayload());
+
+      expect(result.success).toBe(false);
+      expect(authError.value).toBeTruthy();
+    });
+  });
+
+  // ===== [5. NULL/EMPTY — 2 test] =====
+  describe('Null/Empty — State Awal', () => {
+    it('isAuthenticated: false saat localStorage kosong', () => {
+      const { isAuthenticated } = useAuth();
+      expect(isAuthenticated()).toBe(false);
+    });
+
+    it('getStoredToken: null saat tidak ada token', () => {
+      const { getStoredToken } = useAuth();
+      expect(getStoredToken()).toBeNull();
+    });
+  });
+
+  // ===== [6. DATA TYPE — 1 test] =====
+  describe('Data Type — Response Tidak Terduga', () => {
+    it('submitRegistration: error bukan object → authError generik', async () => {
+      vi.mocked(AuthService.registerUser).mockRejectedValue('String error mentah');
+
       const { submitRegistration, authError } = useAuth();
-      (AuthService.registerUser as any).mockResolvedValue({});
+      await submitRegistration(validRegisterPayload());
 
-      await submitRegistration(payload);
+      expect(authError.value).toBeTruthy();
+      expect(authError.value).not.toBe('');
+    });
+  });
 
+  // ===== [7. EQUIVALENCE PARTITION — 2 test] =====
+  describe('Equivalence Partition — Grup Response', () => {
+    it('submitLogin: require_pin_change = true', async () => {
+      vi.mocked(AuthService.loginUser).mockResolvedValue(
+        validData.loginResponse({ require_pin_change: true })
+      );
+
+      const { submitLogin } = useAuth();
+      const result = await submitLogin(validLoginPayload());
+
+      expect(result.require_pin_change).toBe(true);
+    });
+
+    it('submitLogin: require_pin_change = false (default)', async () => {
+      vi.mocked(AuthService.loginUser).mockResolvedValue(validData.loginResponse());
+
+      const { submitLogin } = useAuth();
+      const result = await submitLogin(validLoginPayload());
+
+      expect(result.require_pin_change).toBe(false);
+    });
+  });
+
+  // ===== [8. STATE TRANSITION — 2 test] =====
+  describe('State Transition — Perubahan State', () => {
+    it('authError: di-reset sebelum submit kedua', async () => {
+      vi.mocked(AuthService.registerUser)
+        .mockRejectedValueOnce(validData.error422({ nik: ['Error pertama'] }))
+        .mockResolvedValueOnce(validData.registerResponse());
+
+      const { submitRegistration, authError } = useAuth();
+
+      await submitRegistration(validRegisterPayload());
+      expect(authError.value).toBe('Validasi gagal.');
+
+      await submitRegistration(validRegisterPayload());
       expect(authError.value).toBe('');
     });
 
-    it('[REG-05] Return success false jika gagal', async () => {
-      const { submitRegistration } = useAuth();
-      (AuthService.registerUser as any).mockRejectedValue({
-        response: { data: { message: 'Register Error' } }
-      });
+    it('Token: token lama dihapus saat login baru', async () => {
+      localStorageMock.setItem('sabana_token', 'old-token-123');
 
-      const result = await submitRegistration(payload);
+      vi.mocked(AuthService.loginUser).mockResolvedValue(
+        validData.loginResponse({ token: 'new-token-456' } as any)
+      );
 
-      expect(result).toEqual({ success: false });
-    });
+      const { submitLogin } = useAuth();
+      await submitLogin(validLoginPayload());
 
-    it('[REG-06] authError terisi jika gagal', async () => {
-      const { submitRegistration, authError } = useAuth();
-      (AuthService.registerUser as any).mockRejectedValue({
-        response: { data: { message: 'Register Error' } }
-      });
-
-      await submitRegistration(payload);
-
-      expect(authError.value).toBe('Register Error');
-    });
-
-    it('[REG-07] authError default jika network error', async () => {
-      const { submitRegistration, authError } = useAuth();
-      (AuthService.registerUser as any).mockRejectedValue(new Error('Network Error'));
-
-      await submitRegistration(payload);
-
-      expect(authError.value).toBe('Gagal terhubung ke server SABANA.');
+      expect(localStorageMock.setItem).toHaveBeenCalledWith('sabana_token', 'new-token-456');
     });
   });
 
-  // ============================================================
-  // submitLogin
-  // ============================================================
-  describe('submitLogin', () => {
+  // ===== [9. CONCURRENCY — 1 test] =====
+  describe('Concurrency — Race Condition', () => {
+    it('submit ganda tidak membuat isSubmitting stuck', async () => {
+      vi.mocked(AuthService.registerUser)
+        .mockImplementationOnce(() => new Promise(r => setTimeout(() => r(validData.registerResponse()), 50)))
+        .mockResolvedValueOnce(validData.registerResponse());
 
-    const payload = { nik: '6301234567890123', pin: '123456' };
+      const { submitRegistration, isSubmitting } = useAuth();
 
-    it('[LOGIN-01] Return success dan simpan token + user', async () => {
-      const { submitLogin } = useAuth();
-      (AuthService.loginUser as any).mockResolvedValue({
-        data: {
-          token: 'test-token',
-          user: { id: 1, name: 'John' },
-        },
-      });
+      const p1 = submitRegistration(validRegisterPayload());
+      const p2 = submitRegistration(validRegisterPayload());
 
-      const result = await submitLogin(payload);
-
-      expect(result).toEqual({ success: true, mustChangePin: false });
-      expect(localStorage.getItem('token')).toBe('test-token');
-      expect(localStorage.getItem('user')).toBe(JSON.stringify({ id: 1, name: 'John' }));
-    });
-
-    it('[LOGIN-02] Handle response tanpa wrapper data', async () => {
-      const { submitLogin } = useAuth();
-      (AuthService.loginUser as any).mockResolvedValue({
-        token: 'direct-token',
-        user: { id: 2, name: 'Jane' },
-      });
-
-      await submitLogin(payload);
-
-      expect(localStorage.getItem('token')).toBe('direct-token');
-      expect(localStorage.getItem('user')).toBe(JSON.stringify({ id: 2, name: 'Jane' }));
-    });
-
-    it('[LOGIN-03] Throw error jika token tidak ada', async () => {
-      const { submitLogin, authError } = useAuth();
-      (AuthService.loginUser as any).mockResolvedValue({
-        data: { user: { id: 1 } }, // Tidak ada token
-      });
-
-      await submitLogin(payload);
-
-      expect(authError.value).toContain('Gagal');
-    });
-
-    it('[LOGIN-04] Error 422: Akun belum terverifikasi', async () => {
-      const { submitLogin } = useAuth();
-      (AuthService.loginUser as any).mockRejectedValue({
-        response: {
-          status: 422,
-          data: {
-            errors: {
-              is_verified: ['Akun belum aktif'],
-              whatsapp_number: '08123456789',
-            },
-          },
-        },
-      });
-
-      const result = await submitLogin(payload);
-
-      expect(result).toEqual({
-        success: false,
-        needsVerification: true,
-        wa: '08123456789',
-        message: 'Akun belum aktif',
-      });
-    });
-
-    it('[LOGIN-05] Error 422: Kredensial salah', async () => {
-      const { submitLogin, authError } = useAuth();
-      (AuthService.loginUser as any).mockRejectedValue({
-        response: {
-          status: 422,
-          data: {
-            errors: { nik: ['Kombinasi NIK dan PIN tidak cocok.'] },
-          },
-        },
-      });
-
-      const result = await submitLogin(payload);
-
-      expect(result).toEqual({ success: false });
-      expect(authError.value).toBe('Kombinasi NIK dan PIN tidak cocok.');
-    });
-
-    it('[LOGIN-06] Error 422 default message', async () => {
-      const { submitLogin, authError } = useAuth();
-      (AuthService.loginUser as any).mockRejectedValue({
-        response: { status: 422, data: { errors: {} } },
-      });
-
-      await submitLogin(payload);
-
-      expect(authError.value).toBe('Kombinasi NIK dan PIN tidak cocok.');
-    });
-
-    it('[LOGIN-07] isSubmitting false setelah selesai', async () => {
-      const { submitLogin, isSubmitting } = useAuth();
-      (AuthService.loginUser as any).mockResolvedValue({
-        data: { token: 'x', user: { id: 1 } },
-      });
-
-      await submitLogin(payload);
-
+      await Promise.all([p1, p2]);
       expect(isSubmitting.value).toBe(false);
     });
   });
 
-  // ============================================================
-  // handleLogout
-  // ============================================================
-  describe('handleLogout', () => {
+  // ===== [10. SECURITY — 1 test] =====
+  describe('Security — XSS & Data Leak', () => {
+    it('hanya token yang disimpan, bukan data citizen', async () => {
+      vi.mocked(AuthService.loginUser).mockResolvedValue(
+        validData.loginResponse({
+          citizen: {
+            nik: '6372010101010001',
+            full_name: 'John Doe',
+            whatsapp_number: '6281234567890',
+            family_card_number: '6372010101010002',
+            is_verified: true,
+            last_login: '2025-01-15T10:30:00.000Z',
+          },
+        } as any)
+      );
 
-    it('[LOGOUT-01] Memanggil AuthService.logoutUser', async () => {
-      const { handleLogout } = useAuth();
-      (AuthService.logoutUser as any).mockResolvedValue({});
+      const { submitLogin } = useAuth();
+      await submitLogin(validLoginPayload());
 
-      await handleLogout();
-
-      expect(AuthService.logoutUser).toHaveBeenCalledTimes(1);
-    });
-
-    it('[LOGOUT-02] Hapus token dan user dari localStorage', async () => {
-      const { handleLogout } = useAuth();
-      
-      store['token'] = 'abc';
-      store['user'] = JSON.stringify({ id: 1 });
-
-      (AuthService.logoutUser as any).mockResolvedValue({});
-
-      await handleLogout();
-
-      expect(store['token']).toBeUndefined();
-      expect(store['user']).toBeUndefined();
-    });
-
-    it('[LOGOUT-03] Redirect ke home setelah logout', async () => {
-      const { handleLogout } = useAuth();
-      (AuthService.logoutUser as any).mockResolvedValue({});
-
-      await handleLogout();
-
-      expect(pushMock).toHaveBeenCalledWith({ name: 'home' });
-    });
-
-    it('[LOGOUT-04] Tetap hapus localStorage meski API gagal', async () => {
-      const { handleLogout } = useAuth();
-      
-      store['token'] = 'abc';
-      (AuthService.logoutUser as any).mockRejectedValue(new Error('Network Error'));
-
-      await handleLogout();
-
-      expect(store['token']).toBeUndefined();
-      expect(pushMock).toHaveBeenCalledWith({ name: 'home' });
-    });
-
-    it('[LOGOUT-05] isSubmitting false setelah logout', async () => {
-      const { handleLogout, isSubmitting } = useAuth();
-      (AuthService.logoutUser as any).mockResolvedValue({});
-
-      await handleLogout();
-
-      expect(isSubmitting.value).toBe(false);
+      expect(localStorageMock.setItem).toHaveBeenCalledWith('sabana_token', 'jwt-token-abc-xyz-secure');
+      // Pastikan tidak ada data citizen yang bocor
+      const allCalls = localStorageMock.setItem.mock.calls.flat() as string[];
+      expect(allCalls.join(' ')).not.toContain('John Doe');
+      expect(allCalls.join(' ')).not.toContain('6281234567890');
     });
   });
 });

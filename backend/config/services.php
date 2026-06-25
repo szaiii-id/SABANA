@@ -36,13 +36,20 @@ return [
     ],
 
     'elasticsearch' => [
-        'hosts' => env('ELASTICSEARCH_HOSTS', 'http://localhost:9200'),
-        'user' => env('ELASTICSEARCH_USERNAME', 'elastic'),
-        'pass' => env('ELASTICSEARCH_PASSWORD'),
+        'host'     => env('ELASTICSEARCH_HOST', 'http://sabana_search:9200'),
+        'username' => env('ELASTICSEARCH_USERNAME', 'elastic'),
+        'password' => env('ELASTICSEARCH_PASSWORD'),
     ],
 
     'fonnte' => [
         'token' => env('FONNTE_TOKEN'),
         'admin_number' => env('ADMIN_WA_NUMBER'),
+    ],
+
+    'ocr' => [
+        'url' => env('OCR_SERVICE_URL', 'http://sabana_ocr:5001'),
+    ],
+    'nlp' => [
+        'url' => env('NLP_SERVICE_URL', 'http://sabana_nlp:5002'),
     ],
 ];

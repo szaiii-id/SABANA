@@ -10,6 +10,8 @@ WORKDIR /app
 
 COPY . /app
 
+ARG CLOUDINARY_URL=cloudinary://skip:skip@skip
+
 RUN composer install --no-dev --optimize-autoloader --classmap-authoritative
 
 RUN chown -R www-data:www-data /app/storage /app/bootstrap/cache

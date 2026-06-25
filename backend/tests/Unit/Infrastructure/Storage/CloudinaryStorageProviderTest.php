@@ -1,17 +1,19 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Tests\Unit\Infrastructure\Storage;
 
 use Tests\TestCase;
 use App\Infrastructure\Storage\CloudinaryStorageProvider;
 use App\Contracts\Storage\FileStorageInterface;
+use Cloudinary\Cloudinary;
 use Illuminate\Http\UploadedFile;
 use PHPUnit\Framework\Attributes\Group;
 
 #[Group('unit')]
 #[Group('cloudinary')]
-
-class CloudinaryStorageProviderTest extends TestCase
+final class CloudinaryStorageProviderTest extends TestCase
 {
     private CloudinaryStorageProvider $provider;
 
@@ -19,23 +21,14 @@ class CloudinaryStorageProviderTest extends TestCase
     {
         parent::setUp();
 
-        // Set URL default untuk unit test (tanpa koneksi asli)
         if (!env('CLOUDINARY_URL')) {
             putenv('CLOUDINARY_URL=cloudinary://test_key:test_secret@test_cloud');
         }
 
-        $this->provider = new CloudinaryStorageProvider();
+        $this->provider = new CloudinaryStorageProvider(new Cloudinary(env('CLOUDINARY_URL')));
     }
 
-    protected function tearDown(): void
-    {
-        // Bersihkan setelah test
-        parent::tearDown();
-    }
-
-    // ========================================================================
-    // INTERFACE COMPLIANCE
-    // ========================================================================
+    // ===== INTERFACE COMPLIANCE =====
 
     #[Group('critical')]
     public function test_implements_file_storage_interface(): void
@@ -47,36 +40,7 @@ class CloudinaryStorageProviderTest extends TestCase
         );
     }
 
-    // ========================================================================
-    // CONSTRUCTOR & INITIALIZATION
-    // ========================================================================
-
-    #[Group('critical')]
-    public function test_throws_exception_when_cloudinary_url_is_empty(): void
-    {
-        // Simpan nilai asli
-        $originalUrl = env('CLOUDINARY_URL');
-
-        // Paksa overwrite di repository env Laravel
-        putenv('CLOUDINARY_URL');
-        $_ENV['CLOUDINARY_URL'] = null;
-        $_SERVER['CLOUDINARY_URL'] = null;
-
-        // Reset config cache
-        app()->forgetInstance('config');
-
-        $this->expectException(\Exception::class);
-        $this->expectExceptionMessage('Koneksi Cloudinary gagal: URL tidak ditemukan di .env');
-
-        try {
-            new CloudinaryStorageProvider();
-        } finally {
-            // Kembalikan
-            putenv('CLOUDINARY_URL=' . $originalUrl);
-            $_ENV['CLOUDINARY_URL'] = $originalUrl;
-            $_SERVER['CLOUDINARY_URL'] = $originalUrl;
-        }
-    }
+    // ===== CONSTRUCTOR =====
 
     public function test_cloudinary_instance_is_initialized(): void
     {
@@ -86,21 +50,46 @@ class CloudinaryStorageProviderTest extends TestCase
 
         $instance = $property->getValue($this->provider);
 
-        $this->assertNotNull($instance, 'Cloudinary instance cannot be null.');
-        $this->assertInstanceOf(
-            \Cloudinary\Cloudinary::class,
-            $instance,
-            'Must be instance of Cloudinary\Cloudinary.'
-        );
+        $this->assertNotNull($instance);
+        $this->assertInstanceOf(Cloudinary::class, $instance);
     }
 
-    // ========================================================================
-    // UPLOAD METHOD
-    // ========================================================================
+    // ===== CREATE FROM ENV =====
+
+    public function test_create_from_env_with_valid_url(): void
+    {
+        putenv('CLOUDINARY_URL=cloudinary://key:secret@cloud');
+
+        $provider = CloudinaryStorageProvider::createFromEnv();
+
+        $this->assertInstanceOf(CloudinaryStorageProvider::class, $provider);
+    }
+
+    public function test_create_from_env_throws_exception_when_url_empty(): void
+    {
+        $originalUrl = env('CLOUDINARY_URL');
+        
+        putenv('CLOUDINARY_URL');
+        $_ENV['CLOUDINARY_URL'] = null;
+        $_SERVER['CLOUDINARY_URL'] = null;
+        app()->forgetInstance('config');
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('Koneksi Cloudinary gagal: URL tidak ditemukan di .env');
+
+        try {
+            CloudinaryStorageProvider::createFromEnv();
+        } finally {
+            putenv('CLOUDINARY_URL=' . $originalUrl);
+            $_ENV['CLOUDINARY_URL'] = $originalUrl;
+            $_SERVER['CLOUDINARY_URL'] = $originalUrl;
+        }
+    }
+
+    // ===== UPLOAD =====
 
     public function test_upload_returns_array_with_url_and_public_id(): void
     {
-        // Skip jika tidak ada koneksi asli
         if ($this->isFakeUrl()) {
             $this->markTestSkipped('Integration test: requires valid CLOUDINARY_URL.');
         }
@@ -109,12 +98,11 @@ class CloudinaryStorageProviderTest extends TestCase
 
         $result = $this->provider->upload($file, 'test_folder');
 
-        $this->assertIsArray($result, 'Upload MUST return array.');
-        $this->assertArrayHasKey('url', $result, 'Result MUST have "url" key.');
-        $this->assertArrayHasKey('public_id', $result, 'Result MUST have "public_id" key.');
-        $this->assertStringContainsString('https://', $result['url'], 'URL MUST use HTTPS.');
+        $this->assertIsArray($result);
+        $this->assertArrayHasKey('url', $result);
+        $this->assertArrayHasKey('public_id', $result);
+        $this->assertStringContainsString('https://', $result['url']);
 
-        // Cleanup
         if (isset($result['public_id'])) {
             $this->provider->delete($result['public_id']);
         }
@@ -131,20 +119,14 @@ class CloudinaryStorageProviderTest extends TestCase
         $result = $this->provider->upload($file, 'env_check');
 
         $expectedPath = 'sabana_' . config('app.env') . '/env_check';
-        $this->assertStringContainsString(
-            $expectedPath,
-            $result['url'],
-            sprintf('URL must contain folder path: %s', $expectedPath)
-        );
+        $this->assertStringContainsString($expectedPath, $result['url']);
 
         if (isset($result['public_id'])) {
             $this->provider->delete($result['public_id']);
         }
     }
 
-    // ========================================================================
-    // DELETE METHOD
-    // ========================================================================
+    // ===== DELETE =====
 
     public function test_delete_returns_true_for_existing_file(): void
     {
@@ -152,14 +134,13 @@ class CloudinaryStorageProviderTest extends TestCase
             $this->markTestSkipped('Integration test: requires valid CLOUDINARY_URL.');
         }
 
-        // Upload dulu
         $file = UploadedFile::fake()->image('to-delete.jpg', 100, 100);
         $uploadResult = $this->provider->upload($file, 'delete_test');
+
         $this->assertArrayHasKey('public_id', $uploadResult);
 
-        // Delete
         $result = $this->provider->delete($uploadResult['public_id']);
-        $this->assertTrue($result, 'Delete MUST return true for existing file.');
+        $this->assertTrue($result);
     }
 
     public function test_delete_returns_false_for_nonexistent_id(): void
@@ -169,12 +150,10 @@ class CloudinaryStorageProviderTest extends TestCase
         }
 
         $result = $this->provider->delete('nonexistent_public_id_12345');
-        $this->assertFalse($result, 'Delete MUST return false for nonexistent ID.');
+        $this->assertFalse($result);
     }
 
-    // ========================================================================
-    // EDGE CASES
-    // ========================================================================
+    // ===== EDGE CASES =====
 
     public function test_upload_handles_large_image(): void
     {
@@ -186,7 +165,7 @@ class CloudinaryStorageProviderTest extends TestCase
 
         $result = $this->provider->upload($file, 'large_test');
 
-        $this->assertArrayHasKey('url', $result, 'Large file upload MUST succeed.');
+        $this->assertArrayHasKey('url', $result);
 
         if (isset($result['public_id'])) {
             $this->provider->delete($result['public_id']);
@@ -211,13 +190,8 @@ class CloudinaryStorageProviderTest extends TestCase
         }
     }
 
-    // ========================================================================
-    // HELPER
-    // ========================================================================
+    // ===== HELPER =====
 
-    /**
-     * Cek apakah URL yang dipakai hanya untuk testing (bukan koneksi asli).
-     */
     private function isFakeUrl(): bool
     {
         $url = env('CLOUDINARY_URL', '');

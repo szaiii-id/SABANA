@@ -16,7 +16,12 @@ class AssistanceEvidence extends Model
         'submission_id', 
         'image_type', 
         'image_url', 
-        'cloud_public_id'
+        'cloud_public_id',
+        'ai_result',
+    ];
+
+    protected $casts = [
+        'ai_result' => 'array',
     ];
 
     /**
@@ -35,7 +40,11 @@ class AssistanceEvidence extends Model
     {
         return Attribute::make(
             get: function ($value) {
-                if ($value && str_contains($value, 'res.cloudinary.com')) {
+                if (is_null($value)) {
+                    return null;
+                }
+                
+                if (str_contains($value, 'res.cloudinary.com')) {
                     return str_replace('/upload/', '/upload/f_auto,q_auto/', $value);
                 }
                 

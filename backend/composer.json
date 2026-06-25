@@ -13,12 +13,13 @@
         "azishapidin/indoregion": "^3.0",
         "barryvdh/laravel-dompdf": "^3.1",
         "cloudinary/cloudinary_php": "^3.1",
-        "elasticsearch/elasticsearch": "^9.3",
+        "elasticsearch/elasticsearch": "^8.0",
         "laravel/framework": "^13.0",
         "laravel/octane": "^2.17",
         "laravel/sanctum": "^4.0",
         "laravel/scout": "^11.1",
         "laravel/tinker": "^3.0",
+        "simplesoftwareio/simple-qrcode": "^4.2",
         "symfony/brevo-mailer": "*"
     },
     "require-dev": {

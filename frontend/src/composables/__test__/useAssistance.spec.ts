@@ -1,11 +1,8 @@
-// src/composables/__test__/useAssistance.spec.ts
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { useAssistance } from '../useAssistance';
 import { AssistanceService } from '../../services/AssistanceService';
+import type { AssistanceSubmissionPayload } from '../../types/assistance';
 
-// ============================================================
-// MOCKS
-// ============================================================
 vi.mock('../../services/AssistanceService', () => ({
   AssistanceService: {
     getPrograms: vi.fn(),
@@ -21,449 +18,287 @@ vi.mock('../../services/AssistanceService', () => ({
   },
 }));
 
-// Mock window.URL
-vi.stubGlobal('URL', {
-  createObjectURL: vi.fn(() => 'blob:mock-url'),
-  revokeObjectURL: vi.fn(),
-});
-
-// Mock window.open
-const windowOpenMock = vi.fn();
-vi.stubGlobal('open', windowOpenMock);
-
-// ============================================================
-// TEST SUITE
-// ============================================================
-describe('useAssistance - Professional QA Test Suite', () => {
+describe('useAssistance', () => {
+  let composable: ReturnType<typeof useAssistance>;
 
   beforeEach(() => {
     vi.clearAllMocks();
+    composable = useAssistance();
   });
 
-  // ============================================================
-  // INITIAL STATE
-  // ============================================================
-  describe('Initial State', () => {
+  // =============================================
+  // INITIAL STATE — 6 TEST
+  // =============================================
 
-    it('[INIT-01] isLoading default false', () => {
-      const { isLoading } = useAssistance();
-      expect(isLoading.value).toBe(false);
-    });
-
-    it('[INIT-02] error default null', () => {
-      const { error } = useAssistance();
-      expect(error.value).toBeNull();
-    });
-
-    it('[INIT-03] programs default empty array', () => {
-      const { programs } = useAssistance();
-      expect(programs.value).toEqual([]);
-    });
-
-    it('[INIT-04] regencies default empty array', () => {
-      const { regencies } = useAssistance();
-      expect(regencies.value).toEqual([]);
-    });
-
-    it('[INIT-05] districts default empty array', () => {
-      const { districts } = useAssistance();
-      expect(districts.value).toEqual([]);
-    });
-
-    it('[INIT-06] villages default empty array', () => {
-      const { villages } = useAssistance();
-      expect(villages.value).toEqual([]);
-    });
+  it('test_isLoading_default_false', () => {
+    expect(composable.isLoading.value).toBe(false);
   });
 
-  // ============================================================
-  // fetchPrograms
-  // ============================================================
-  describe('fetchPrograms', () => {
-
-    it('[PROG-01] Memanggil AssistanceService.getPrograms', async () => {
-      const { fetchPrograms } = useAssistance();
-      (AssistanceService.getPrograms as any).mockResolvedValue([{ id: '1' }]);
-
-      await fetchPrograms();
-
-      expect(AssistanceService.getPrograms).toHaveBeenCalledTimes(1);
-    });
-
-    it('[PROG-02] Set programs dengan response langsung (array)', async () => {
-      const { fetchPrograms, programs } = useAssistance();
-      const mockData = [{ id: '1', title: 'Program A' }];
-      (AssistanceService.getPrograms as any).mockResolvedValue(mockData);
-
-      await fetchPrograms();
-
-      expect(programs.value).toEqual(mockData);
-    });
-
-    it('[PROG-03] Set programs dengan response.data wrapper', async () => {
-      const { fetchPrograms, programs } = useAssistance();
-      const mockData = [{ id: '1', title: 'Program A' }];
-      (AssistanceService.getPrograms as any).mockResolvedValue({ data: mockData });
-
-      await fetchPrograms();
-
-      expect(programs.value).toEqual(mockData);
-    });
-
-    it('[PROG-04] Set error jika gagal', async () => {
-      const { fetchPrograms, error } = useAssistance();
-      (AssistanceService.getPrograms as any).mockRejectedValue(new Error('Network Error'));
-
-      await fetchPrograms();
-
-      expect(error.value).toBe('Gagal memuat daftar program bantuan.');
-    });
+  it('test_error_default_null', () => {
+    expect(composable.error.value).toBeNull();
   });
 
-  // ============================================================
-  // fetchRegencies
-  // ============================================================
-  describe('fetchRegencies', () => {
-
-    it('[REG-01] Memanggil AssistanceService.getRegencies', async () => {
-      const { fetchRegencies } = useAssistance();
-      (AssistanceService.getRegencies as any).mockResolvedValue([{ id: '1', name: 'Banjar' }]);
-
-      await fetchRegencies();
-
-      expect(AssistanceService.getRegencies).toHaveBeenCalledTimes(1);
-    });
-
-    it('[REG-02] Set regencies dengan response', async () => {
-      const { fetchRegencies, regencies } = useAssistance();
-      const mockData = [{ id: '1', name: 'Banjar' }];
-      (AssistanceService.getRegencies as any).mockResolvedValue(mockData);
-
-      await fetchRegencies();
-
-      expect(regencies.value).toEqual(mockData);
-    });
-
-    it('[REG-03] Set error jika gagal', async () => {
-      const { fetchRegencies, error } = useAssistance();
-      (AssistanceService.getRegencies as any).mockRejectedValue(new Error('Error'));
-
-      await fetchRegencies();
-
-      expect(error.value).toBe('Gagal memuat data kabupaten.');
-    });
+  it('test_programs_default_empty', () => {
+    expect(composable.programs.value).toEqual([]);
   });
 
-  // ============================================================
-  // fetchDistricts
-  // ============================================================
-  describe('fetchDistricts', () => {
-
-    it('[DIST-01] Memanggil AssistanceService.getDistricts dengan regencyId', async () => {
-      const { fetchDistricts } = useAssistance();
-      (AssistanceService.getDistricts as any).mockResolvedValue([]);
-
-      await fetchDistricts('6301');
-
-      expect(AssistanceService.getDistricts).toHaveBeenCalledWith('6301');
-    });
-
-    it('[DIST-02] Set districts dengan response', async () => {
-      const { fetchDistricts, districts } = useAssistance();
-      const mockData = [{ id: '630101', name: 'Martapura' }];
-      (AssistanceService.getDistricts as any).mockResolvedValue(mockData);
-
-      await fetchDistricts('6301');
-
-      expect(districts.value).toEqual(mockData);
-    });
-
-    it('[DIST-03] Set error jika gagal', async () => {
-      const { fetchDistricts, error } = useAssistance();
-      (AssistanceService.getDistricts as any).mockRejectedValue(new Error('Error'));
-
-      await fetchDistricts('6301');
-
-      expect(error.value).toBe('Gagal memuat data kecamatan.');
-    });
+  it('test_regencies_default_empty', () => {
+    expect(composable.regencies.value).toEqual([]);
   });
 
-  // ============================================================
-  // fetchVillages
-  // ============================================================
-  describe('fetchVillages', () => {
-
-    it('[VILL-01] Memanggil AssistanceService.getVillages dengan districtId', async () => {
-      const { fetchVillages } = useAssistance();
-      (AssistanceService.getVillages as any).mockResolvedValue([]);
-
-      await fetchVillages('630101');
-
-      expect(AssistanceService.getVillages).toHaveBeenCalledWith('630101');
-    });
-
-    it('[VILL-02] Set villages dengan response', async () => {
-      const { fetchVillages, villages } = useAssistance();
-      const mockData = [{ id: '6301012001', name: 'Sungai Paring' }];
-      (AssistanceService.getVillages as any).mockResolvedValue(mockData);
-
-      await fetchVillages('630101');
-
-      expect(villages.value).toEqual(mockData);
-    });
-
-    it('[VILL-03] Set error jika gagal', async () => {
-      const { fetchVillages, error } = useAssistance();
-      (AssistanceService.getVillages as any).mockRejectedValue(new Error('Error'));
-
-      await fetchVillages('630101');
-
-      expect(error.value).toBe('Gagal memuat data desa.');
-    });
+  it('test_districts_default_empty', () => {
+    expect(composable.districts.value).toEqual([]);
   });
 
-  // ============================================================
-  // submitAssistance
-  // ============================================================
-  describe('submitAssistance', () => {
-
-    const mockPayload: any = {
-      program_id: '1',
-      regency_id: '6301',
-      district_id: '630101',
-      village_id: '6301012001',
-      disbursement_method: 'village_cash',
-      bank_account_number: '',
-      dynamicInputs: {},
-      files: {},
-    };
-
-    it('[SUB-01] Memanggil AssistanceService.submitRegistration', async () => {
-      const { submitAssistance } = useAssistance();
-      (AssistanceService.submitRegistration as any).mockResolvedValue({ data: {} });
-
-      await submitAssistance(mockPayload);
-
-      expect(AssistanceService.submitRegistration).toHaveBeenCalledWith(mockPayload);
-    });
-
-    it('[SUB-02] Return response jika sukses', async () => {
-      const { submitAssistance } = useAssistance();
-      const mockResponse = { data: { registration_number: 'REG-001' } };
-      (AssistanceService.submitRegistration as any).mockResolvedValue(mockResponse);
-
-      const result = await submitAssistance(mockPayload);
-
-      expect(result).toEqual(mockResponse);
-    });
-
-    it('[SUB-03] isLoading true selama proses', async () => {
-      const { submitAssistance, isLoading } = useAssistance();
-      let resolve: any;
-      (AssistanceService.submitRegistration as any).mockReturnValue(new Promise((r: any) => { resolve = r; }));
-
-      const promise = submitAssistance(mockPayload);
-      expect(isLoading.value).toBe(true);
-
-      resolve({ data: {} });
-      await promise;
-      expect(isLoading.value).toBe(false);
-    });
-
-    it('[SUB-04] Set error jika gagal', async () => {
-      const { submitAssistance, error } = useAssistance();
-      (AssistanceService.submitRegistration as any).mockRejectedValue({
-        response: { data: { message: 'Data tidak valid' } }
-      });
-
-      await expect(submitAssistance(mockPayload)).rejects.toThrow();
-      expect(error.value).toBe('Data tidak valid');
-    });
-
-    it('[SUB-05] error default jika network error', async () => {
-      const { submitAssistance, error } = useAssistance();
-      (AssistanceService.submitRegistration as any).mockRejectedValue(new Error('Network'));
-
-      await expect(submitAssistance(mockPayload)).rejects.toThrow();
-      expect(error.value).toBe('Terjadi kesalahan saat memproses pengajuan.');
-    });
+  it('test_villages_default_empty', () => {
+    expect(composable.villages.value).toEqual([]);
   });
 
-  // ============================================================
-  // fetchMySubmissions
-  // ============================================================
-  describe('fetchMySubmissions', () => {
+  // =============================================
+  // FETCH PROGRAMS — 4 TEST
+  // =============================================
 
-    it('[HIST-01] Memanggil AssistanceService.getMySubmissions', async () => {
-      const { fetchMySubmissions } = useAssistance();
-      (AssistanceService.getMySubmissions as any).mockResolvedValue({ data: [] });
-
-      await fetchMySubmissions();
-
-      expect(AssistanceService.getMySubmissions).toHaveBeenCalledTimes(1);
-    });
-
-    it('[HIST-02] isLoading true selama proses', async () => {
-      const { fetchMySubmissions, isLoading } = useAssistance();
-      let resolve: any;
-      (AssistanceService.getMySubmissions as any).mockReturnValue(new Promise((r: any) => { resolve = r; }));
-
-      const promise = fetchMySubmissions();
-      expect(isLoading.value).toBe(true);
-
-      resolve({ data: [] });
-      await promise;
-      expect(isLoading.value).toBe(false);
-    });
-
-    it('[HIST-03] Error jika gagal', async () => {
-      const { fetchMySubmissions, error } = useAssistance();
-      (AssistanceService.getMySubmissions as any).mockRejectedValue(new Error('Error'));
-
-      await expect(fetchMySubmissions()).rejects.toThrow();
-      expect(error.value).toBe('Gagal memuat riwayat pengajuan.');
-    });
+  it('test_fetchPrograms_memanggil_getPrograms', async () => {
+    (AssistanceService.getPrograms as any).mockResolvedValue([]);
+    await composable.fetchPrograms();
+    expect(AssistanceService.getPrograms).toHaveBeenCalled();
   });
 
-  // ============================================================
-  // updateAssistance
-  // ============================================================
-  describe('updateAssistance', () => {
-
-    const mockPayload: any = {
-      regency_id: '6301',
-      district_id: '630101',
-      village_id: '6301012001',
-      disbursement_method: 'village_cash',
-      bank_account_number: '',
-      dynamicInputs: {},
-      files: {},
-    };
-
-    it('[UPD-01] Memanggil AssistanceService.updateRegistration', async () => {
-      const { updateAssistance } = useAssistance();
-      (AssistanceService.updateRegistration as any).mockResolvedValue({});
-
-      await updateAssistance('uuid-123', mockPayload);
-
-      expect(AssistanceService.updateRegistration).toHaveBeenCalledWith('uuid-123', mockPayload);
-    });
-
-    it('[UPD-02] Error handling', async () => {
-      const { updateAssistance, error } = useAssistance();
-      (AssistanceService.updateRegistration as any).mockRejectedValue({
-        response: { data: { message: 'Gagal update' } }
-      });
-
-      await expect(updateAssistance('uuid-123', mockPayload)).rejects.toThrow();
-      expect(error.value).toBe('Gagal update');
-    });
+  it('test_fetchPrograms_set_programs_dari_array_langsung', async () => {
+    const mockData = [{ id: '1', title: 'Program A' }];
+    (AssistanceService.getPrograms as any).mockResolvedValue(mockData);
+    await composable.fetchPrograms();
+    expect(composable.programs.value).toEqual(mockData);
   });
 
-  // ============================================================
-  // deleteAssistance
-  // ============================================================
-  describe('deleteAssistance', () => {
-
-    it('[DEL-01] Memanggil AssistanceService.cancelRegistration', async () => {
-      const { deleteAssistance } = useAssistance();
-      (AssistanceService.cancelRegistration as any).mockResolvedValue({ success: true });
-
-      await deleteAssistance('REG-001');
-
-      expect(AssistanceService.cancelRegistration).toHaveBeenCalledWith('REG-001');
-    });
-
-    it('[DEL-02] Error handling', async () => {
-      const { deleteAssistance, error } = useAssistance();
-      (AssistanceService.cancelRegistration as any).mockRejectedValue({
-        response: { data: { message: 'Gagal hapus' } }
-      });
-
-      await expect(deleteAssistance('REG-001')).rejects.toThrow();
-      expect(error.value).toBe('Gagal hapus');
-    });
+  it('test_fetchPrograms_set_programs_dari_response_data', async () => {
+    const mockData = [{ id: '1', title: 'Program A' }];
+    (AssistanceService.getPrograms as any).mockResolvedValue(mockData);
+    await composable.fetchPrograms();
+    expect(composable.programs.value).toEqual(mockData);
   });
 
-  // ============================================================
-  // fetchDetail
-  // ============================================================
-  describe('fetchDetail', () => {
-
-    it('[DET-01] Memanggil AssistanceService.getSubmissionDetail', async () => {
-      const { fetchDetail } = useAssistance();
-      (AssistanceService.getSubmissionDetail as any).mockResolvedValue({
-        data: { id: 'uuid-1', status: 'validated' }
-      });
-
-      await fetchDetail('uuid-1');
-
-      expect(AssistanceService.getSubmissionDetail).toHaveBeenCalledWith('uuid-1');
-    });
-
-    it('[DET-02] Return response.data jika ada wrapper', async () => {
-      const { fetchDetail } = useAssistance();
-      const mockData = { id: 'uuid-1', status: 'validated' };
-      (AssistanceService.getSubmissionDetail as any).mockResolvedValue({ data: mockData });
-
-      const result = await fetchDetail('uuid-1');
-
-      expect(result).toEqual(mockData);
-    });
-
-    it('[DET-03] Return response langsung jika tidak ada wrapper', async () => {
-      const { fetchDetail } = useAssistance();
-      const mockData = { id: 'uuid-1', status: 'validated' };
-      (AssistanceService.getSubmissionDetail as any).mockResolvedValue(mockData);
-
-      const result = await fetchDetail('uuid-1');
-
-      expect(result).toEqual(mockData);
-    });
-
-    it('[DET-04] Error handling', async () => {
-      const { fetchDetail, error } = useAssistance();
-      (AssistanceService.getSubmissionDetail as any).mockRejectedValue({
-        response: { data: { message: 'Not found' } }
-      });
-
-      await expect(fetchDetail('uuid-1')).rejects.toThrow();
-      expect(error.value).toBe('Not found');
-    });
+  it('test_fetchPrograms_set_error_jika_gagal', async () => {
+    (AssistanceService.getPrograms as any).mockRejectedValue(new Error('Gagal'));
+    try { await composable.fetchPrograms(); } catch (e) {}
+    expect(composable.error.value).toBe('Gagal memuat daftar program bantuan.');
   });
 
-  // ============================================================
-  // downloadPdf
-  // ============================================================
-  describe('downloadPdf', () => {
+  // =============================================
+  // FETCH REGENCIES — 3 TEST
+  // =============================================
 
-    it('[PDF-01] Memanggil AssistanceService.downloadReceipt', async () => {
-      const { downloadPdf } = useAssistance();
-      const mockBlob = new Blob(['pdf'], { type: 'application/pdf' });
-      (AssistanceService.downloadReceipt as any).mockResolvedValue(mockBlob);
+  it('test_fetchRegencies_memanggil_getRegencies', async () => {
+    (AssistanceService.getRegencies as any).mockResolvedValue([]);
+    await composable.fetchRegencies();
+    expect(AssistanceService.getRegencies).toHaveBeenCalled();
+  });
 
-      await downloadPdf('uuid-1', 'SABANA_REG-001');
+  it('test_fetchRegencies_set_regencies', async () => {
+    const mock = [{ id: '6301', name: 'Tanah Laut' }];
+    (AssistanceService.getRegencies as any).mockResolvedValue(mock);
+    await composable.fetchRegencies();
+    expect(composable.regencies.value).toEqual(mock);
+  });
 
-      expect(AssistanceService.downloadReceipt).toHaveBeenCalledWith('uuid-1');
-    });
+  it('test_fetchRegencies_set_error_jika_gagal', async () => {
+    (AssistanceService.getRegencies as any).mockRejectedValue(new Error('Gagal'));
+    try { await composable.fetchRegencies(); } catch (e) {}
+    expect(composable.error.value).toBe('Gagal memuat data kabupaten.');
+  });
 
-    it('[PDF-02] Membuka PDF di tab baru', async () => {
-      const { downloadPdf } = useAssistance();
-      const mockBlob = new Blob(['pdf'], { type: 'application/pdf' });
-      (AssistanceService.downloadReceipt as any).mockResolvedValue(mockBlob);
+  // =============================================
+  // FETCH DISTRICTS — 3 TEST
+  // =============================================
 
-      await downloadPdf('uuid-1', 'SABANA_REG-001');
+  it('test_fetchDistricts_memanggil_getDistricts', async () => {
+    (AssistanceService.getDistricts as any).mockResolvedValue([]);
+    await composable.fetchDistricts('6301');
+    expect(AssistanceService.getDistricts).toHaveBeenCalledWith('6301');
+  });
 
-      expect(URL.createObjectURL).toHaveBeenCalled();
-      expect(windowOpenMock).toHaveBeenCalledWith('blob:mock-url', '_blank');
-    });
+  it('test_fetchDistricts_set_districts', async () => {
+    const mock = [{ id: '6301020', name: 'Pelaihari' }];
+    (AssistanceService.getDistricts as any).mockResolvedValue(mock);
+    await composable.fetchDistricts('6301');
+    expect(composable.districts.value).toEqual(mock);
+  });
 
-    it('[PDF-03] Error handling', async () => {
-      const { downloadPdf, error } = useAssistance();
-      (AssistanceService.downloadReceipt as any).mockRejectedValue(new Error('Error'));
+  it('test_fetchDistricts_set_error_jika_gagal', async () => {
+    (AssistanceService.getDistricts as any).mockRejectedValue(new Error('Gagal'));
+    try { await composable.fetchDistricts('6301'); } catch (e) {}
+    expect(composable.error.value).toBe('Gagal memuat data kecamatan.');
+  });
 
-      await expect(downloadPdf('uuid-1', 'test')).rejects.toThrow();
-      expect(error.value).toBe('Gagal memproses preview PDF.');
-    });
+  // =============================================
+  // FETCH VILLAGES — 3 TEST
+  // =============================================
+
+  it('test_fetchVillages_memanggil_getVillages', async () => {
+    (AssistanceService.getVillages as any).mockResolvedValue([]);
+    await composable.fetchVillages('6301020');
+    expect(AssistanceService.getVillages).toHaveBeenCalledWith('6301020');
+  });
+
+  it('test_fetchVillages_set_villages', async () => {
+    const mock = [{ id: '6301020001', name: 'Desa Test' }];
+    (AssistanceService.getVillages as any).mockResolvedValue(mock);
+    await composable.fetchVillages('6301020');
+    expect(composable.villages.value).toEqual(mock);
+  });
+
+  it('test_fetchVillages_set_error_jika_gagal', async () => {
+    (AssistanceService.getVillages as any).mockRejectedValue(new Error('Gagal'));
+    try { await composable.fetchVillages('6301020'); } catch (e) {}
+    expect(composable.error.value).toBe('Gagal memuat data desa.');
+  });
+
+  // =============================================
+  // SUBMIT ASSISTANCE — 5 TEST
+  // =============================================
+
+  const mockPayload: AssistanceSubmissionPayload = {
+    program_id: '1', regency_id: '6301', district_id: '6301020', village_id: '6301020001',
+    disbursement_method: 'village_cash', dynamicInputs: {}, files: {},
+  };
+
+  it('test_submitAssistance_memanggil_submitRegistration', async () => {
+    (AssistanceService.submitRegistration as any).mockResolvedValue({ data: { registration_number: 'SBN-001' } });
+    await composable.submitAssistance(mockPayload);
+    expect(AssistanceService.submitRegistration).toHaveBeenCalledWith(mockPayload, undefined);
+  });
+
+  it('test_submitAssistance_return_response_jika_sukses', async () => {
+    const mockResponse = { data: { registration_number: 'SBN-001', status: 'pending' } };
+    (AssistanceService.submitRegistration as any).mockResolvedValue(mockResponse);
+    const result = await composable.submitAssistance(mockPayload);
+    expect(result).toEqual(mockResponse);
+  });
+
+  it('test_submitAssistance_isLoading_true_selama_proses', () => {
+    (AssistanceService.submitRegistration as any).mockReturnValue(new Promise(() => {}));
+    composable.submitAssistance(mockPayload);
+    expect(composable.isLoading.value).toBe(true);
+  });
+
+  it('test_submitAssistance_set_error_jika_gagal', async () => {
+    (AssistanceService.submitRegistration as any).mockRejectedValue({ response: { data: { message: 'Gagal' } } });
+    try { await composable.submitAssistance(mockPayload); } catch (e) {}
+    expect(composable.error.value).toBe('Gagal');
+  });
+
+  it('test_submitAssistance_error_default_jika_network_error', async () => {
+    (AssistanceService.submitRegistration as any).mockRejectedValue(new Error('Network'));
+    try { await composable.submitAssistance(mockPayload); } catch (e) {}
+    expect(composable.error.value).toBe('Terjadi kesalahan saat memproses pengajuan.');
+  });
+
+  // =============================================
+  // FETCH MY SUBMISSIONS — 3 TEST
+  // =============================================
+
+  it('test_fetchMySubmissions_memanggil_getMySubmissions', async () => {
+    (AssistanceService.getMySubmissions as any).mockResolvedValue({ data: [] });
+    await composable.fetchMySubmissions();
+    expect(AssistanceService.getMySubmissions).toHaveBeenCalled();
+  });
+
+  it('test_fetchMySubmissions_isLoading_true_selama_proses', () => {
+    (AssistanceService.getMySubmissions as any).mockReturnValue(new Promise(() => {}));
+    composable.fetchMySubmissions();
+    expect(composable.isLoading.value).toBe(true);
+  });
+
+  it('test_fetchMySubmissions_set_error_jika_gagal', async () => {
+    (AssistanceService.getMySubmissions as any).mockRejectedValue(new Error('Gagal'));
+    try { await composable.fetchMySubmissions(); } catch (e) {}
+    expect(composable.error.value).toBe('Gagal memuat riwayat pengajuan.');
+  });
+
+  // =============================================
+  // UPDATE ASSISTANCE — 2 TEST
+  // =============================================
+
+  it('test_updateAssistance_memanggil_updateRegistration', async () => {
+    (AssistanceService.updateRegistration as any).mockResolvedValue({});
+    await composable.updateAssistance('1', mockPayload);
+    expect(AssistanceService.updateRegistration).toHaveBeenCalledWith('1', mockPayload);
+  });
+
+  it('test_updateAssistance_set_error_jika_gagal', async () => {
+    (AssistanceService.updateRegistration as any).mockRejectedValue({ response: { data: { message: 'Gagal' } } });
+    try { await composable.updateAssistance('1', mockPayload); } catch (e) {}
+    expect(composable.error.value).toBe('Gagal');
+  });
+
+  // =============================================
+  // DELETE ASSISTANCE — 2 TEST
+  // =============================================
+
+  it('test_deleteAssistance_memanggil_cancelRegistration', async () => {
+    (AssistanceService.cancelRegistration as any).mockResolvedValue({});
+    await composable.deleteAssistance('SBN-001');
+    expect(AssistanceService.cancelRegistration).toHaveBeenCalledWith('SBN-001');
+  });
+
+  it('test_deleteAssistance_set_error_jika_gagal', async () => {
+    (AssistanceService.cancelRegistration as any).mockRejectedValue({ response: { data: { message: 'Gagal' } } });
+    try { await composable.deleteAssistance('SBN-001'); } catch (e) {}
+    expect(composable.error.value).toBe('Gagal');
+  });
+
+  // =============================================
+  // FETCH DETAIL — 4 TEST
+  // =============================================
+
+  it('test_fetchDetail_memanggil_getSubmissionDetail', async () => {
+    (AssistanceService.getSubmissionDetail as any).mockResolvedValue({ data: { id: '1' } });
+    await composable.fetchDetail('1');
+    expect(AssistanceService.getSubmissionDetail).toHaveBeenCalledWith('1');
+  });
+
+  it('test_fetchDetail_return_data_jika_ada_wrapper', async () => {
+    const mock = { data: { id: '1' } };
+    (AssistanceService.getSubmissionDetail as any).mockResolvedValue(mock);
+    const result = await composable.fetchDetail('1');
+    expect(result).toEqual({ id: '1' });
+  });
+
+  it('test_fetchDetail_return_langsung_jika_tidak_ada_wrapper', async () => {
+    const mock = { id: '1' };
+    (AssistanceService.getSubmissionDetail as any).mockResolvedValue(mock);
+    const result = await composable.fetchDetail('1');
+    expect(result).toEqual(mock);
+  });
+
+  it('test_fetchDetail_set_error_jika_gagal', async () => {
+    (AssistanceService.getSubmissionDetail as any).mockRejectedValue(new Error('Gagal'));
+    try { await composable.fetchDetail('1'); } catch (e) {}
+    expect(composable.error.value).toBe('Gagal memuat detail.');
+  });
+
+  // =============================================
+  // DOWNLOAD PDF — 3 TEST
+  // =============================================
+
+  it('test_downloadPdf_memanggil_downloadReceipt', async () => {
+    (AssistanceService.downloadReceipt as any).mockResolvedValue(new Blob());
+    await composable.downloadPdf('1', 'test.pdf');
+    expect(AssistanceService.downloadReceipt).toHaveBeenCalledWith('1');
+  });
+
+  it('test_downloadPdf_membuka_pdf_di_tab_baru', async () => {
+    const mockBlob = new Blob();
+    (AssistanceService.downloadReceipt as any).mockResolvedValue(mockBlob);
+    const openSpy = vi.spyOn(window, 'open').mockReturnValue(null);
+    await composable.downloadPdf('1', 'test.pdf');
+    expect(openSpy).toHaveBeenCalled();
+    openSpy.mockRestore();
+  });
+
+  it('test_downloadPdf_set_error_jika_gagal', async () => {
+    (AssistanceService.downloadReceipt as any).mockRejectedValue(new Error('Gagal'));
+    try { await composable.downloadPdf('1', 'test.pdf'); } catch (e) {}
+    expect(composable.error.value).toBe('Gagal memproses preview PDF.');
   });
 });

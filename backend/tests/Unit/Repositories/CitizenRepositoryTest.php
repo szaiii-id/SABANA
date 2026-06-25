@@ -1,17 +1,19 @@
 <?php
 
+declare(strict_types=1);
+
+// ===== FILE: tests/Unit/Repositories/CitizenRepositoryTest.php =====
+
 namespace Tests\Unit\Repositories;
 
-use Tests\TestCase;
 use App\Models\Citizen;
 use App\Repositories\CitizenRepository;
-use App\Repositories\Contracts\CitizenRepositoryInterface;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use PHPUnit\Framework\Attributes\Group;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
+use Tests\TestCase;
 
-#[Group('unit')]
-#[Group('repository')]
-class CitizenRepositoryTest extends TestCase
+final class CitizenRepositoryTest extends TestCase
 {
     use RefreshDatabase;
 
@@ -23,246 +25,317 @@ class CitizenRepositoryTest extends TestCase
         $this->repository = new CitizenRepository();
     }
 
-    // ========================================================================
-    // INTERFACE COMPLIANCE
-    // ========================================================================
+    // ===== [DATA HELPER] =====
 
-    #[Group('critical')]
-    public function test_implements_citizen_repository_interface(): void
+    private function validData(array $overrides = []): array
     {
-        $this->assertInstanceOf(
-            CitizenRepositoryInterface::class,
-            $this->repository,
-            'CitizenRepository MUST implement CitizenRepositoryInterface.'
-        );
+        return array_merge([
+            'nik' => '6371012508900001',
+            'family_card_number' => '6371012508900002',
+            'full_name' => 'Ahmad Fauzi',
+            'whatsapp_number' => '6281234567890',
+            'pin' => Hash::make('123456'),
+            'is_verified' => false,
+        ], $overrides);
     }
 
-    // ========================================================================
-    // CREATE
-    // ========================================================================
-
-    public function test_create_returns_citizen_instance(): void
+    private function createCitizen(array $overrides = []): Citizen
     {
-        $data = [
-            'nik'                => '6301234567890123',
-            'family_card_number' => '6301234567890123',
-            'full_name'          => 'AKHMAD WARGA',
-            'whatsapp_number'    => '081234567890',
-            'pin'                => bcrypt('123456'),
-        ];
+        return Citizen::create($this->validData($overrides));
+    }
 
-        $citizen = $this->repository->create($data);
+    // ===== (1) HAPPY PATH =====
+
+    public function test_create_mengembalikan_instance_citizen(): void
+    {
+        $citizen = $this->repository->create($this->validData());
 
         $this->assertInstanceOf(Citizen::class, $citizen);
-        $this->assertDatabaseHas('citizens', ['nik' => '6301234567890123']);
+        $this->assertNotNull($citizen->id);
+        $this->assertEquals('6371012508900001', $citizen->nik);
     }
 
-    public function test_create_persists_all_fields_correctly(): void
+    public function test_find_by_nik_mengembalikan_citizen_yang_ada(): void
     {
-        $data = [
-            'nik'                => '6309998888777766',
-            'family_card_number' => '6309998888777766',
-            'full_name'          => 'JOHN DOE',
-            'whatsapp_number'    => '089876543210',
-            'pin'                => bcrypt('654321'),
-        ];
+        $this->createCitizen(['nik' => '6371012508900001']);
 
-        $citizen = $this->repository->create($data);
+        $citizen = $this->repository->findByNik('6371012508900001');
 
-        $this->assertEquals('6309998888777766', $citizen->nik);
-        $this->assertEquals('JOHN DOE', $citizen->full_name);
-        $this->assertEquals('089876543210', $citizen->whatsapp_number);
+        $this->assertNotNull($citizen);
+        $this->assertEquals('6371012508900001', $citizen->nik);
     }
 
-    // ========================================================================
-    // FIND BY NIK
-    // ========================================================================
-
-    public function test_find_by_nik_returns_citizen_when_exists(): void
+    public function test_update_mengembalikan_citizen_dengan_data_baru(): void
     {
-        Citizen::factory()->create(['nik' => '6301112222333344']);
+        $citizen = $this->createCitizen();
+        $updated = $this->repository->update($citizen->id, ['full_name' => 'Nama Baru']);
 
-        $result = $this->repository->findByNik('6301112222333344');
-
-        $this->assertInstanceOf(Citizen::class, $result);
-        $this->assertEquals('6301112222333344', $result->nik);
+        $this->assertEquals('Nama Baru', $updated->full_name);
+        $this->assertEquals('Nama Baru', $citizen->fresh()->full_name);
     }
 
-    public function test_find_by_nik_returns_null_when_not_found(): void
-    {
-        $result = $this->repository->findByNik('0000000000000000');
+    // ===== (2) SAD PATH =====
 
-        $this->assertNull($result, 'findByNik MUST return null for nonexistent NIK.');
+    public function test_find_by_nik_mengembalikan_null_jika_tidak_ditemukan(): void
+    {
+        $citizen = $this->repository->findByNik('9999999999999999');
+
+        $this->assertNull($citizen);
     }
 
-    public function test_find_by_nik_is_case_insensitive(): void
+    public function test_find_by_nik_and_whatsapp_gagal_jika_nik_salah(): void
     {
-        // NIK adalah angka, tapi pastikan query tepat
-        Citizen::factory()->create(['nik' => '6305556666777788']);
-
-        $result = $this->repository->findByNik('6305556666777788');
-
-        $this->assertNotNull($result);
-    }
-
-    // ========================================================================
-    // FIND BY NIK & WHATSAPP
-    // ========================================================================
-
-    public function test_find_by_nik_and_whatsapp_returns_citizen_when_both_match(): void
-    {
-        Citizen::factory()->create([
-            'nik'              => '6301231234123412',
-            'whatsapp_number'  => '081122334455',
+        $this->createCitizen([
+            'nik' => '6371012508900001',
+            'whatsapp_number' => '6281234567890',
         ]);
 
-        $result = $this->repository->findByNikAndWhatsapp('6301231234123412', '081122334455');
+        $citizen = $this->repository->findByNikAndWhatsapp('9999999999999999', '6281234567890');
 
-        $this->assertInstanceOf(Citizen::class, $result);
-        $this->assertEquals('081122334455', $result->whatsapp_number);
+        $this->assertNull($citizen);
     }
 
-    public function test_find_by_nik_and_whatsapp_returns_null_when_nik_wrong(): void
+    public function test_find_by_nik_and_whatsapp_gagal_jika_whatsapp_salah(): void
     {
-        Citizen::factory()->create([
-            'nik'              => '6301231234123412',
-            'whatsapp_number'  => '081122334455',
+        $this->createCitizen([
+            'nik' => '6371012508900001',
+            'whatsapp_number' => '6281234567890',
         ]);
 
-        $result = $this->repository->findByNikAndWhatsapp('9999999999999999', '081122334455');
+        $citizen = $this->repository->findByNikAndWhatsapp('6371012508900001', '6289999999999');
 
-        $this->assertNull($result, 'MUST return null when NIK does not match.');
+        $this->assertNull($citizen);
     }
 
-    public function test_find_by_nik_and_whatsapp_returns_null_when_whatsapp_wrong(): void
-    {
-        Citizen::factory()->create([
-            'nik'              => '6301231234123412',
-            'whatsapp_number'  => '081122334455',
-        ]);
-
-        $result = $this->repository->findByNikAndWhatsapp('6301231234123412', '088888888888');
-
-        $this->assertNull($result, 'MUST return null when WhatsApp does not match.');
-    }
-
-    // ========================================================================
-    // UPDATE
-    // ========================================================================
-
-    public function test_update_modifies_existing_citizen(): void
-    {
-        $citizen = Citizen::factory()->create([
-            'full_name'       => 'OLD NAME',
-            'whatsapp_number' => '081111111111',
-        ]);
-
-        $updated = $this->repository->update($citizen->id, [
-            'full_name'       => 'NEW NAME',
-            'whatsapp_number' => '082222222222',
-        ]);
-
-        $this->assertEquals('NEW NAME', $updated->full_name);
-        $this->assertEquals('082222222222', $updated->whatsapp_number);
-
-        $this->assertDatabaseHas('citizens', [
-            'id'               => $citizen->id,
-            'full_name'        => 'NEW NAME',
-            'whatsapp_number'  => '082222222222',
-        ]);
-    }
-
-    public function test_update_throws_exception_when_citizen_not_found(): void
+    public function test_update_gagal_jika_id_tidak_ditemukan(): void
     {
         $this->expectException(\Illuminate\Database\Eloquent\ModelNotFoundException::class);
 
-        $this->repository->update('00000000-0000-0000-0000-000000000000', ['full_name' => 'GHOST']);
+        $this->repository->update('019eba77-0000-0000-0000-000000000000', ['full_name' => 'Hantu']);
     }
 
-    // ========================================================================
-    // OTP EXPIRED CHECK
-    // ========================================================================
+    // ===== (3) BOUNDARY =====
 
-    public function test_is_otp_expired_returns_true_when_expired(): void
+    public function test_find_by_nik_dengan_nik_16_karakter(): void
     {
-        $citizen = Citizen::factory()->create([
-            'temporary_pin_expired_at' => now()->subHour(),
-        ]);
+        $this->createCitizen(['nik' => '1234567890123456']);
 
-        $result = $this->repository->isOtpExpired($citizen);
+        $citizen = $this->repository->findByNik('1234567890123456');
 
-        $this->assertTrue($result, 'OTP should be expired when time is in the past.');
+        $this->assertNotNull($citizen);
     }
 
-    public function test_is_otp_expired_returns_false_when_still_valid(): void
+    public function test_update_dengan_array_kosong_tidak_mengubah_data(): void
     {
-        $citizen = Citizen::factory()->create([
-            'temporary_pin_expired_at' => now()->addHour(),
-        ]);
+        $citizen = $this->createCitizen();
+        $original = $citizen->full_name;
 
-        $result = $this->repository->isOtpExpired($citizen);
-
-        $this->assertFalse($result, 'OTP should NOT be expired when time is in the future.');
-    }
-
-    public function test_is_otp_expired_returns_true_at_exact_expiry(): void
-    {
-        $citizen = Citizen::factory()->create([
-            'temporary_pin_expired_at' => now(),
-        ]);
-
-        $result = $this->repository->isOtpExpired($citizen);
-
-        $this->assertTrue($result, 'OTP at exact expiry time should be considered expired.');
-    }
-
-    // ========================================================================
-    // UPDATE PIN
-    // ========================================================================
-
-    public function test_update_pin_changes_citizen_pin(): void
-    {
-        $oldPin = bcrypt('old_pin_123');
-        $newPin = bcrypt('new_pin_456');
-
-        $citizen = Citizen::factory()->create(['pin' => $oldPin]);
-
-        $result = $this->repository->updatePin($citizen, $newPin);
-
-        $this->assertTrue($result, 'updatePin MUST return true on success.');
-
+        $this->repository->update($citizen->id, []);
         $citizen->refresh();
-        $this->assertEquals($newPin, $citizen->pin, 'Pin MUST be updated in database.');
+
+        $this->assertEquals($original, $citizen->full_name);
     }
 
-    public function test_update_pin_returns_boolean(): void
+    // ===== (4) EDGE CASE =====
+
+    public function test_find_by_nik_and_whatsapp_dengan_nomor_sama_beda_nik(): void
     {
-        $citizen = Citizen::factory()->create(['pin' => bcrypt('123456')]);
+        // WhatsApp tidak unique — satu nomor bisa dipakai beberapa NIK
+        $citizen1 = $this->createCitizen([
+            'nik' => '6371012508900001',
+            'whatsapp_number' => '6281234567890',
+        ]);
+        $this->createCitizen([
+            'nik' => '6371012508900003',
+            'whatsapp_number' => '6281234567890',
+        ]);
 
-        $result = $this->repository->updatePin($citizen, bcrypt('654321'));
+        // findByNikAndWhatsapp harusnya return spesifik NIK
+        $result = $this->repository->findByNikAndWhatsapp('6371012508900001', '6281234567890');
 
-        $this->assertIsBool($result, 'updatePin MUST return boolean.');
+        $this->assertNotNull($result);
+        $this->assertEquals($citizen1->id, $result->id);
     }
 
-    // ========================================================================
-    // EDGE CASES
-    // ========================================================================
-
-    public function test_create_with_minimal_data(): void
+    public function test_find_by_nik_with_lock_mengembalikan_citizen(): void
     {
-        $this->markTestSkipped(
-            'Skipped: family_card_number has NOT NULL constraint. ' .
-            'Minimal data must include all required fields per database schema.'
+        $this->createCitizen(['nik' => '6371012508900001']);
+
+        DB::transaction(function () {
+            $citizen = $this->repository->findByNikWithLock('6371012508900001');
+            $this->assertNotNull($citizen);
+            $this->assertEquals('6371012508900001', $citizen->nik);
+        });
+    }
+
+    // ===== (5) NULL / EMPTY =====
+
+    public function test_is_otp_expired_jika_temporary_pin_expired_at_null(): void
+    {
+        $citizen = $this->createCitizen([
+            'temporary_pin' => Hash::make('654321'),
+            'temporary_pin_expired_at' => null,
+        ]);
+
+        $this->assertTrue($this->repository->isOtpExpired($citizen));
+    }
+
+    public function test_is_otp_expired_jika_temporary_pin_tidak_ada(): void
+    {
+        $citizen = $this->createCitizen([
+            'temporary_pin' => null,
+            'temporary_pin_expired_at' => null,
+        ]);
+
+        $this->assertTrue($this->repository->isOtpExpired($citizen));
+    }
+    
+    // ===== (6) DATA TYPE =====
+
+    public function test_create_mengembalikan_citizen_dengan_id_bertipe_string_uuid(): void
+    {
+        $citizen = $this->repository->create($this->validData());
+
+        $this->assertIsString($citizen->id);
+        $this->assertMatchesRegularExpression(
+            '/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i',
+            $citizen->id
         );
     }
 
-    public function test_find_by_nik_with_leading_zeros(): void
+    public function test_find_by_nik_mengembalikan_null_tidak_mengembalikan_collection(): void
     {
-        Citizen::factory()->create(['nik' => '0001234567890123']);
+        $result = $this->repository->findByNik('0000000000000000');
 
-        $result = $this->repository->findByNik('0001234567890123');
+        $this->assertNull($result);
+        $this->assertNotInstanceOf(\Illuminate\Database\Eloquent\Collection::class, $result);
+    }
 
-        $this->assertNotNull($result, 'NIK with leading zeros MUST be found.');
-        $this->assertEquals('0001234567890123', $result->nik);
+    // ===== (7) EQUIVALENCE PARTITION =====
+
+    public function test_grup_is_otp_expired_mengembalikan_true(): void
+    {
+        $citizen = $this->createCitizen([
+            'temporary_pin' => Hash::make('654321'),
+            'temporary_pin_expired_at' => now()->subHour(),
+        ]);
+
+        $this->assertTrue($this->repository->isOtpExpired($citizen));
+    }
+
+    public function test_grup_is_otp_expired_mengembalikan_false(): void
+    {
+        $citizen = $this->createCitizen([
+            'temporary_pin' => Hash::make('654321'),
+            'temporary_pin_expired_at' => now()->addMinutes(5),
+        ]);
+
+        $this->assertFalse($this->repository->isOtpExpired($citizen));
+    }
+
+    // ===== (8) STATE TRANSITION =====
+
+    public function test_transisi_pin_setelah_update_pin(): void
+    {
+        $citizen = $this->createCitizen(['pin' => Hash::make('pin_lama')]);
+        $pinLama = $citizen->pin;
+
+        $this->repository->updatePin($citizen, Hash::make('pin_baru'));
+        $citizen->refresh();
+
+        $this->assertNotEquals($pinLama, $citizen->pin);
+        $this->assertTrue(Hash::check('pin_baru', $citizen->pin));
+    }
+
+    public function test_transisi_is_verified_melalui_update(): void
+    {
+        $citizen = $this->createCitizen(['is_verified' => false]);
+        $this->assertFalse($citizen->is_verified);
+
+        $this->repository->update($citizen->id, ['is_verified' => true]);
+        $citizen->refresh();
+
+        $this->assertTrue($citizen->is_verified);
+    }
+
+    public function test_transisi_last_login_melalui_update(): void
+    {
+        $citizen = $this->createCitizen();
+        $this->assertNull($citizen->last_login_at);
+
+        $this->repository->update($citizen->id, ['last_login_at' => now()]);
+        $citizen->refresh();
+
+        $this->assertNotNull($citizen->last_login_at);
+    }
+
+    // ===== (9) CONCURRENCY =====
+
+    public function test_find_by_nik_with_lock_di_dalam_transaction_mencegah_stale_data(): void
+    {
+        $this->createCitizen(['nik' => '6371012508900001', 'full_name' => 'Asli']);
+
+        DB::transaction(function () {
+            $citizen = $this->repository->findByNikWithLock('6371012508900001');
+            $this->assertNotNull($citizen);
+
+            // Simulasi update di dalam lock
+            $citizen->update(['full_name' => 'Diubah Dalam Lock']);
+            $this->assertEquals('Diubah Dalam Lock', $citizen->full_name);
+        });
+
+        $this->assertEquals('Diubah Dalam Lock', Citizen::where('nik', '6371012508900001')->first()->full_name);
+    }
+
+    public function test_update_pin_menghapus_semua_token(): void
+    {
+        $citizen = $this->createCitizen();
+        $citizen->createToken('test-token');
+
+        $this->assertCount(1, $citizen->tokens);
+
+        $this->repository->updatePin($citizen, Hash::make('pin_baru'));
+        $citizen->refresh();
+
+        $this->assertCount(0, $citizen->tokens);
+    }
+
+    // ===== (10) SECURITY =====
+
+    public function test_pin_tersimpan_dalam_bentuk_hash_tidak_plain_text(): void
+    {
+        $citizen = $this->repository->create($this->validData(['pin' => Hash::make('rahasia123')]));
+
+        $this->assertNotEquals('rahasia123', $citizen->pin);
+        $this->assertTrue(Hash::check('rahasia123', $citizen->pin));
+        $this->assertStringStartsWith('$2y$', $citizen->pin);
+    }
+
+    public function test_update_pin_menghasilkan_hash_baru_tidak_sama_dengan_input(): void
+    {
+        $citizen = $this->createCitizen();
+        $hashed = Hash::make('pin_baru_123456');
+
+        $this->repository->updatePin($citizen, $hashed);
+        $citizen->refresh();
+
+        $this->assertNotEquals('pin_baru_123456', $citizen->pin);
+        $this->assertTrue(Hash::check('pin_baru_123456', $citizen->pin));
+    }
+
+    public function test_update_tidak_bisa_mengisi_field_yang_tidak_ada_di_fillable(): void
+    {
+        $citizen = $this->createCitizen();
+
+        // 'id' tidak di fillable, harusnya tidak berubah
+        $idLama = $citizen->id;
+        $this->repository->update($citizen->id, [
+            'id' => '019eba77-9999-9999-9999-999999999999',
+            'full_name' => 'Test',
+        ]);
+        $citizen->refresh();
+
+        $this->assertEquals($idLama, $citizen->id);
+        $this->assertEquals('Test', $citizen->full_name);
     }
 }

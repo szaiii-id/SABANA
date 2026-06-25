@@ -8,39 +8,75 @@ import {
   updateAssistanceApi,
   deleteAssistanceApi,
   getSubmissionDetailApi,
-  downloadAssistancePdfApi
+  downloadAssistancePdfApi,
+  getDisbursementReceiptApi,           
+  downloadDisbursementReceiptPdfApi    
 } from '../api/assistanceApi';
 
 import type { 
   AssistanceSubmissionPayload, 
   AssistanceResponse, 
   Region,
-  AssistanceProgramSchema 
+  AssistanceProgramSchema,
+  HistoryResponse,
+  DisbursementReceiptResponse,
+  SubmissionDetailData,
+  FormInputSchema,
+  FormDocumentSchema
 } from '../types/assistance';
+
+interface RawProgramResponse {
+  id: string;
+  title: string;
+  slug?: string;
+  description?: string;
+  badge?: string;
+  banner_url?: string | null;
+  start_date?: string | null;
+  end_date?: string | null;
+  quota_total?: number | null;
+  benefit_amount?: number | null;
+  inputs?: FormInputSchema[];
+  documents?: FormDocumentSchema[];
+  has_submitted?: boolean;
+}
+
+interface UpdateAssistanceResponse {
+  success: boolean;
+  message: string;
+  data?: {
+    registration_number: string;
+    status: string;
+  };
+}
+
+interface DeleteAssistanceResponse {
+  success: boolean;
+  message: string;
+}
 
 export class AssistanceService {
   
   static async getPrograms(): Promise<AssistanceProgramSchema[]> {
-    const rawData = await getProgramsApi();
+    const rawData: RawProgramResponse[] = await getProgramsApi();
     
-    return rawData.map((item: any) => ({
+    return rawData.map((item: RawProgramResponse): AssistanceProgramSchema => ({
       id: item.id,
-      // 1. Ambil title, karena BE Resource sudah mengirimnya sebagai 'title'
-      title: item.title, 
-      
-      // 2. Ambil badge langsung (bukan dari criteria lagi)
+      title: item.title,
+      slug: item.slug || '',
+      description: item.description || '',
       badge: item.badge || 'Bantuan Aktif',
-      
-      // 3. Biarkan icon default ini
-      iconSvg: item.iconSvg || '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 12l8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25" /></svg>',
-      
-      // 4. Ambil inputs & files langsung (bukan dari criteria lagi)
+      banner_url: item.banner_url || null,
+      start_date: item.start_date || null,
+      end_date: item.end_date || null,
+      quota_total: item.quota_total || null,
+      benefit_amount: item.benefit_amount || null,
       inputs: item.inputs || [],
-      files: item.files || []
+      documents: item.documents || [],
+      has_submitted: item.has_submitted ?? false,
     }));
   }
 
-  // Region Handlers
   static async getRegencies(): Promise<Region[]> {
     return await getRegenciesApi();
   }
@@ -53,39 +89,37 @@ export class AssistanceService {
     return await getVillagesApi(districtId);
   }
 
-  // Submission Handler
-  static async submitRegistration(payload: AssistanceSubmissionPayload): Promise<AssistanceResponse> {
-    const formData = new FormData();
+  static async submitRegistration(payload: AssistanceSubmissionPayload, idempotencyKey?: string): Promise<AssistanceResponse> {
+      const formData = new FormData();
+      formData.append('program_id', payload.program_id);
+      formData.append('regency_id', payload.regency_id);
+      formData.append('district_id', payload.district_id);
+      formData.append('village_id', payload.village_id);
+      formData.append('disbursement_method', payload.disbursement_method);
+      
+      if (payload.disbursement_method === 'bpd_transfer' && payload.bank_account_number) {
+        formData.append('bank_account_number', payload.bank_account_number);
+      }
 
-    formData.append('program_id', payload.program_id);
-    formData.append('regency_id', payload.regency_id);
-    formData.append('district_id', payload.district_id);
-    formData.append('village_id', payload.village_id);
-    formData.append('disbursement_method', payload.disbursement_method);
-    
-    if (payload.disbursement_method === 'bpd_transfer' && payload.bank_account_number) {
-      formData.append('bank_account_number', payload.bank_account_number);
-    }
+      Object.entries(payload.dynamicInputs).forEach(([key, value]) => {
+        formData.append(key, String(value));
+      });
 
-    Object.entries(payload.dynamicInputs).forEach(([key, value]) => {
-      formData.append(key, value as string);
-    });
+      Object.entries(payload.files).forEach(([key, file]) => {
+        if (file instanceof File) {
+          formData.append(key, file);
+        }
+      });
 
-    Object.entries(payload.files).forEach(([key, file]) => {
-      formData.append(key, file);
-    });
-
-    return await submitAssistanceApi(formData);
+      return await submitAssistanceApi(formData, idempotencyKey);
   }
 
-  // Riwayat Handler
-  static async getMySubmissions(): Promise<any> {
+  static async getMySubmissions(): Promise<HistoryResponse> {
     return await getMySubmissionsApi();
   }
 
-  static async updateRegistration(id: string, payload: AssistanceSubmissionPayload): Promise<any> {
+  static async updateRegistration(id: string, payload: AssistanceSubmissionPayload): Promise<UpdateAssistanceResponse> {
     const formData = new FormData();
-
     formData.append('regency_id', payload.regency_id);
     formData.append('district_id', payload.district_id);
     formData.append('village_id', payload.village_id);
@@ -94,8 +128,12 @@ export class AssistanceService {
         formData.append('bank_account_number', payload.bank_account_number);
     }
 
+    if (payload.is_evaluation) {
+        formData.append('is_evaluation', '1');
+    }
+
     Object.entries(payload.dynamicInputs).forEach(([key, value]) => {
-        formData.append(key, value as string);
+        formData.append(key, String(value));
     });
 
     Object.entries(payload.files).forEach(([key, file]) => {
@@ -107,15 +145,23 @@ export class AssistanceService {
     return await updateAssistanceApi(id, formData);
   }
 
-  static async cancelRegistration(registrationNumber: string): Promise<any> {
+  static async cancelRegistration(registrationNumber: string): Promise<DeleteAssistanceResponse> {
       return await deleteAssistanceApi(registrationNumber);
   }
 
-  static async getSubmissionDetail(id: string): Promise<any> {
+  static async getSubmissionDetail(id: string): Promise<{ success: boolean; data: SubmissionDetailData }> {
       return await getSubmissionDetailApi(id);
   }
 
   static async downloadReceipt(id: string): Promise<Blob> {
     return await downloadAssistancePdfApi(id);
+  }
+
+  static async getDisbursementReceipt(submissionId: string): Promise<DisbursementReceiptResponse> {
+    return await getDisbursementReceiptApi(submissionId);
+  }
+
+  static async downloadDisbursementReceiptPdf(submissionId: string): Promise<Blob> {
+    return await downloadDisbursementReceiptPdfApi(submissionId);
   }
 }

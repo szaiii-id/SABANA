@@ -1,53 +1,137 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Tests\Unit\Services\Assistance;
 
-use App\Models\AssistanceProgram;
 use App\Models\AssistanceSubmission;
+use App\Models\AssistanceProgram;
 use App\Models\Citizen;
 use App\Services\Assistance\AssistanceExportService;
-use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
-class AssistanceExportServiceTest extends TestCase
+final class AssistanceExportServiceTest extends TestCase
 {
-    use RefreshDatabase; // WAJIB ADA agar kita bisa insert data dummy ke DB Memory
+    use RefreshDatabase;
 
-    private AssistanceExportService $exportService;
+    private AssistanceExportService $service;
 
     protected function setUp(): void
     {
         parent::setUp();
-        $this->exportService = new AssistanceExportService();
+        $this->service = new AssistanceExportService();
     }
 
-    public function test_generate_receipt_pdf_loads_correct_view_and_paper_size()
+    // ===== HELPER =====
+
+    private function createSubmission(string $status = 'validated'): AssistanceSubmission
     {
-        // 1. Arrange: Buat data dummy di DB agar findOrFail() sukses!
-        $citizen = Citizen::factory()->create();
-        $program = AssistanceProgram::factory()->create();
-        
-        $submission = AssistanceSubmission::factory()->create([
-            'citizen_id' => $citizen->id,
-            'program_id' => $program->id,
+        $citizen = Citizen::query()->create([
+            'nik' => str_pad((string) mt_rand(1000000000000000, 9999999999999999), 16, '0', STR_PAD_LEFT),
+            'family_card_number' => str_pad((string) mt_rand(1000000000000000, 9999999999999999), 16, '0', STR_PAD_LEFT),
+            'full_name' => 'Test Citizen',
+            'whatsapp_number' => '0812' . mt_rand(10000000, 99999999),
+            'pin' => bcrypt('123456'),
         ]);
 
-        // 2. Mock Facade PDF (Agar tidak benar-benar render PDF yang berat)
-        Pdf::shouldReceive('loadView')
-            ->once()
-            ->with('pdf.assistance_receipt', \Mockery::type('array'))
-            ->andReturnSelf(); 
+        $program = AssistanceProgram::query()->create([
+            'name' => 'Program PDF ' . uniqid(),
+            'description' => 'Deskripsi',
+            'start_date' => now()->subDay(),
+            'end_date' => now()->addDays(30),
+            'quota_total' => 100,
+            'benefit_amount' => 500000,
+            'status' => 'active',
+        ]);
 
-        Pdf::shouldReceive('setPaper')
-            ->once()
-            ->with('a4', 'portrait')
-            ->andReturnSelf();
+        return AssistanceSubmission::query()->create([
+            'citizen_id' => $citizen->id,
+            'program_id' => $program->id,
+            'registration_number' => 'SBN-PDF' . strtoupper(substr(uniqid(), -6)),
+            'regency_id' => '6301',
+            'district_id' => '6301010',
+            'village_id' => '6301010001',
+            'status' => $status,
+            'submission_data' => ['name' => 'Test'],
+            'disbursement_method' => 'bpd_transfer',
+        ]);
+    }
 
-        // 3. Act: Panggil fungsi service menggunakan ID asli dari database dummy
-        $this->exportService->generateReceiptPdf($submission->id);
+    // ===== HAPPY PATH (1 test) =====
 
-        // Assert ditangani otomatis oleh Mockery (memastikan ->once() terpenuhi)
-        $this->assertTrue(true); 
+    public function test_generate_receipt_pdf_returns_pdf_instance(): void
+    {
+        $submission = $this->createSubmission('validated');
+
+        $pdf = $this->service->generateReceiptPdf($submission->id);
+
+        $this->assertInstanceOf(\Barryvdh\DomPDF\PDF::class, $pdf);
+    }
+
+    // ===== SAD PATH (2 test) =====
+
+    public function test_generate_receipt_pdf_throws_for_missing_submission(): void
+    {
+        $this->expectException(\Exception::class);
+        $this->expectExceptionMessage('Data pengajuan tidak ditemukan.');
+
+        $this->service->generateReceiptPdf('550e8400-e29b-41d4-a716-446655449999');
+    }
+
+    public function test_generate_receipt_pdf_throws_for_needs_revision(): void
+    {
+        $submission = $this->createSubmission('needs_revision');
+
+        $this->expectException(\Exception::class);
+        $this->expectExceptionMessage('Tidak dapat download PDF.');
+
+        $this->service->generateReceiptPdf($submission->id);
+    }
+
+    // ===== BOUNDARY (1 test) =====
+
+    public function test_generate_receipt_pdf_allowed_statuses(): void
+    {
+        $allowed = ['pending', 'validated', 'completed', 'rejected'];
+
+        foreach ($allowed as $status) {
+            $submission = $this->createSubmission($status);
+
+            $pdf = $this->service->generateReceiptPdf($submission->id);
+
+            $this->assertInstanceOf(\Barryvdh\DomPDF\PDF::class, $pdf);
+        }
+    }
+
+    // ===== NULL/EMPTY (1 test) =====
+
+    public function test_generate_receipt_pdf_with_missing_relations(): void
+    {
+        $submission = $this->createSubmission('validated');
+
+        $pdf = $this->service->generateReceiptPdf($submission->id);
+
+        $this->assertNotNull($pdf);
+    }
+
+    // ===== DATA TYPE (1 test) =====
+
+    public function test_generate_receipt_pdf_returns_pdf_object(): void
+    {
+        $submission = $this->createSubmission('validated');
+
+        $result = $this->service->generateReceiptPdf($submission->id);
+
+        $this->assertIsObject($result);
+    }
+
+    // ===== SECURITY (1 test) =====
+
+    public function test_generate_receipt_pdf_only_for_existing_submission(): void
+    {
+        $this->expectException(\Exception::class);
+
+        $this->service->generateReceiptPdf('550e8400-e29b-41d4-a716-446655440000');
     }
 }

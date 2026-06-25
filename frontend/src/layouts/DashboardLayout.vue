@@ -14,7 +14,11 @@
         </router-link>
       </div>
 
-      <DashboardNavbar :loading="isSubmitting" @logout="isLogoutModalOpen = true" />
+      <DashboardNavbar 
+        ref="navbarRef"
+        :loading="isSubmitting" 
+        @logout="isLogoutModalOpen = true" 
+      />
 
       <DashboardSidebar />
 
@@ -28,6 +32,8 @@
 
     </div>
 
+    <IdleWarningToast :isWarning="isWarning" :remainingSeconds="remainingSeconds" />
+    
     <LogoutModal 
       :show="isLogoutModalOpen" 
       @close="isLogoutModalOpen = false" 
@@ -37,20 +43,49 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue';
+import { ref, onMounted, provide } from 'vue';
 import DashboardNavbar from '../components/layout/DashboardNavbar.vue';
 import DashboardSidebar from '../components/layout/DashboardSidebar.vue';
 import DashboardFooter from '../components/layout/DashboardFooter.vue';
 import LogoutModal from '../components/layout/LogoutModal.vue';
+import IdleWarningToast from '../components/layout/IdleWarningToast.vue';
 import { useAuth } from '../composables/useAuth';
 import { useIdleTimeout } from '../composables/useIdleTimeout';
+import api from '../api/axios';
 
-useIdleTimeout();
-
+// ===== COMPOSABLES =====
 const isLogoutModalOpen = ref(false);
 const { isSubmitting, handleLogout } = useAuth();
+const navbarRef = ref<InstanceType<typeof DashboardNavbar>>();
 
-const onConfirmLogout = async () => {
+// Idle timeout 5 menit + warning 60 detik
+const { isWarning, remainingSeconds } = useIdleTimeout(async () => {
+  await handleLogout();
+}, {
+  timeoutMinutes: 5,
+  enableWarning: true,
+  debug: import.meta.env.DEV,
+});
+
+// ===== FETCH PROFILE =====
+onMounted(async () => {
+  try {
+    const response = await api.get('/citizen/profile');
+    const fullName = response.data?.data?.full_name || 'Warga';
+    navbarRef.value?.setFirstName(fullName.split(' ')[0]);
+  } catch {
+    // Biarkan default 'Warga'
+  }
+});
+
+// ===== PROVIDE: Update nama di header =====
+const updateFirstName = (name: string): void => {
+  navbarRef.value?.setFirstName(name.split(' ')[0]);
+};
+provide('updateFirstName', updateFirstName);
+
+// ===== LOGOUT =====
+const onConfirmLogout = async (): Promise<void> => {
   isLogoutModalOpen.value = false;
   await handleLogout();
 };

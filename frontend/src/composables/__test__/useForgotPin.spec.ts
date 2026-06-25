@@ -3,9 +3,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { useForgotPin } from '../useForgotPin';
 import AuthService from '../../services/AuthService';
 
-// ============================================================
-// MOCKS
-// ============================================================
+// ===== MOCKS =====
 vi.mock('../../services/AuthService', () => ({
   default: {
     requestForgotPinOtp: vi.fn(),
@@ -13,18 +11,17 @@ vi.mock('../../services/AuthService', () => ({
   },
 }));
 
-// ============================================================
-// TEST SUITE
-// ============================================================
+// ===== TYPES =====
+type ResolveFn = (value: unknown) => void;
+
+// ===== TEST SUITE =====
 describe('useForgotPin - Professional QA Test Suite', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  // ============================================================
-  // INITIAL STATE
-  // ============================================================
+  // ===== INITIAL STATE =====
   describe('Initial State', () => {
 
     it('[INIT-01] isSubmitting default false', () => {
@@ -43,16 +40,14 @@ describe('useForgotPin - Professional QA Test Suite', () => {
     });
   });
 
-  // ============================================================
-  // sendOtp
-  // ============================================================
+  // ===== sendOtp =====
   describe('sendOtp', () => {
 
     const payload = { nik: '6301234567890123', whatsapp_number: '08123456789' };
 
     it('[SEND-01] Memanggil AuthService.requestForgotPinOtp dengan payload benar', async () => {
       const { sendOtp } = useForgotPin();
-      (AuthService.requestForgotPinOtp as any).mockResolvedValue({});
+      vi.mocked(AuthService.requestForgotPinOtp).mockResolvedValue({});
 
       await sendOtp(payload);
 
@@ -62,7 +57,7 @@ describe('useForgotPin - Professional QA Test Suite', () => {
 
     it('[SEND-02] Return success true jika berhasil', async () => {
       const { sendOtp } = useForgotPin();
-      (AuthService.requestForgotPinOtp as any).mockResolvedValue({});
+      vi.mocked(AuthService.requestForgotPinOtp).mockResolvedValue({});
 
       const result = await sendOtp(payload);
 
@@ -71,8 +66,8 @@ describe('useForgotPin - Professional QA Test Suite', () => {
 
     it('[SEND-03] Return success false jika gagal', async () => {
       const { sendOtp } = useForgotPin();
-      (AuthService.requestForgotPinOtp as any).mockRejectedValue({
-        response: { data: { message: 'User tidak ditemukan' } }
+      vi.mocked(AuthService.requestForgotPinOtp).mockRejectedValue({
+        response: { data: { message: 'User tidak ditemukan' } },
       });
 
       const result = await sendOtp({ nik: '000', whatsapp_number: '000' });
@@ -82,8 +77,8 @@ describe('useForgotPin - Professional QA Test Suite', () => {
 
     it('[SEND-04] Set errorMessage jika gagal', async () => {
       const { sendOtp, errorMessage } = useForgotPin();
-      (AuthService.requestForgotPinOtp as any).mockRejectedValue({
-        response: { data: { message: 'User tidak ditemukan' } }
+      vi.mocked(AuthService.requestForgotPinOtp).mockRejectedValue({
+        response: { data: { message: 'User tidak ditemukan' } },
       });
 
       await sendOtp(payload);
@@ -93,7 +88,7 @@ describe('useForgotPin - Professional QA Test Suite', () => {
 
     it('[SEND-05] Error message default jika tidak ada response', async () => {
       const { sendOtp, errorMessage } = useForgotPin();
-      (AuthService.requestForgotPinOtp as any).mockRejectedValue(new Error('Network Error'));
+      vi.mocked(AuthService.requestForgotPinOtp).mockRejectedValue(new Error('Network Error'));
 
       await sendOtp(payload);
 
@@ -103,15 +98,15 @@ describe('useForgotPin - Professional QA Test Suite', () => {
     it('[SEND-06] isSubmitting true selama proses', async () => {
       const { sendOtp, isSubmitting } = useForgotPin();
       
-      let resolvePromise: any;
-      (AuthService.requestForgotPinOtp as any).mockReturnValue(
-        new Promise((resolve: any) => { resolvePromise = resolve; })
+      let resolvePromise: ResolveFn;
+      vi.mocked(AuthService.requestForgotPinOtp).mockReturnValue(
+        new Promise((resolve: ResolveFn) => { resolvePromise = resolve; })
       );
 
       const promise = sendOtp(payload);
       expect(isSubmitting.value).toBe(true);
 
-      resolvePromise({});
+      resolvePromise!({});
       await promise;
 
       expect(isSubmitting.value).toBe(false);
@@ -119,7 +114,7 @@ describe('useForgotPin - Professional QA Test Suite', () => {
 
     it('[SEND-07] isSubmitting false setelah selesai (sukses)', async () => {
       const { sendOtp, isSubmitting } = useForgotPin();
-      (AuthService.requestForgotPinOtp as any).mockResolvedValue({});
+      vi.mocked(AuthService.requestForgotPinOtp).mockResolvedValue({});
 
       await sendOtp(payload);
 
@@ -128,7 +123,7 @@ describe('useForgotPin - Professional QA Test Suite', () => {
 
     it('[SEND-08] isSubmitting false setelah selesai (gagal)', async () => {
       const { sendOtp, isSubmitting } = useForgotPin();
-      (AuthService.requestForgotPinOtp as any).mockRejectedValue(new Error('Error'));
+      vi.mocked(AuthService.requestForgotPinOtp).mockRejectedValue(new Error('Error'));
 
       await sendOtp(payload);
 
@@ -138,15 +133,15 @@ describe('useForgotPin - Professional QA Test Suite', () => {
     it('[SEND-09] isResending true selama proses', async () => {
       const { sendOtp, isResending } = useForgotPin();
       
-      let resolvePromise: any;
-      (AuthService.requestForgotPinOtp as any).mockReturnValue(
-        new Promise((resolve: any) => { resolvePromise = resolve; })
+      let resolvePromise: ResolveFn;
+      vi.mocked(AuthService.requestForgotPinOtp).mockReturnValue(
+        new Promise((resolve: ResolveFn) => { resolvePromise = resolve; })
       );
 
       const promise = sendOtp(payload);
       expect(isResending.value).toBe(true);
 
-      resolvePromise({});
+      resolvePromise!({});
       await promise;
 
       expect(isResending.value).toBe(false);
@@ -156,7 +151,7 @@ describe('useForgotPin - Professional QA Test Suite', () => {
       const { sendOtp, errorMessage } = useForgotPin();
       
       errorMessage.value = 'Error lama';
-      (AuthService.requestForgotPinOtp as any).mockResolvedValue({});
+      vi.mocked(AuthService.requestForgotPinOtp).mockResolvedValue({});
 
       await sendOtp(payload);
 
@@ -164,9 +159,7 @@ describe('useForgotPin - Professional QA Test Suite', () => {
     });
   });
 
-  // ============================================================
-  // executeReset
-  // ============================================================
+  // ===== executeReset =====
   describe('executeReset', () => {
 
     const payload = {
@@ -179,7 +172,7 @@ describe('useForgotPin - Professional QA Test Suite', () => {
 
     it('[RESET-01] Memanggil AuthService.resetPin dengan payload benar', async () => {
       const { executeReset } = useForgotPin();
-      (AuthService.resetPin as any).mockResolvedValue({});
+      vi.mocked(AuthService.resetPin).mockResolvedValue({});
 
       await executeReset(payload);
 
@@ -189,7 +182,7 @@ describe('useForgotPin - Professional QA Test Suite', () => {
 
     it('[RESET-02] Return success true jika berhasil', async () => {
       const { executeReset } = useForgotPin();
-      (AuthService.resetPin as any).mockResolvedValue({});
+      vi.mocked(AuthService.resetPin).mockResolvedValue({});
 
       const result = await executeReset(payload);
 
@@ -198,8 +191,8 @@ describe('useForgotPin - Professional QA Test Suite', () => {
 
     it('[RESET-03] Return success false jika gagal', async () => {
       const { executeReset } = useForgotPin();
-      (AuthService.resetPin as any).mockRejectedValue({
-        response: { data: { message: 'OTP expired' } }
+      vi.mocked(AuthService.resetPin).mockRejectedValue({
+        response: { data: { message: 'OTP expired' } },
       });
 
       const result = await executeReset(payload);
@@ -209,8 +202,8 @@ describe('useForgotPin - Professional QA Test Suite', () => {
 
     it('[RESET-04] Set errorMessage jika gagal', async () => {
       const { executeReset, errorMessage } = useForgotPin();
-      (AuthService.resetPin as any).mockRejectedValue({
-        response: { data: { message: 'OTP expired' } }
+      vi.mocked(AuthService.resetPin).mockRejectedValue({
+        response: { data: { message: 'OTP expired' } },
       });
 
       await executeReset(payload);
@@ -220,7 +213,7 @@ describe('useForgotPin - Professional QA Test Suite', () => {
 
     it('[RESET-05] Error message default jika network error', async () => {
       const { executeReset, errorMessage } = useForgotPin();
-      (AuthService.resetPin as any).mockRejectedValue(new Error('Network Error'));
+      vi.mocked(AuthService.resetPin).mockRejectedValue(new Error('Network Error'));
 
       await executeReset(payload);
 
@@ -230,15 +223,15 @@ describe('useForgotPin - Professional QA Test Suite', () => {
     it('[RESET-06] isSubmitting true selama proses', async () => {
       const { executeReset, isSubmitting } = useForgotPin();
       
-      let resolvePromise: any;
-      (AuthService.resetPin as any).mockReturnValue(
-        new Promise((resolve: any) => { resolvePromise = resolve; })
+      let resolvePromise: ResolveFn;
+      vi.mocked(AuthService.resetPin).mockReturnValue(
+        new Promise((resolve: ResolveFn) => { resolvePromise = resolve; })
       );
 
       const promise = executeReset(payload);
       expect(isSubmitting.value).toBe(true);
 
-      resolvePromise({});
+      resolvePromise!({});
       await promise;
 
       expect(isSubmitting.value).toBe(false);
@@ -246,7 +239,7 @@ describe('useForgotPin - Professional QA Test Suite', () => {
 
     it('[RESET-07] isSubmitting false setelah selesai', async () => {
       const { executeReset, isSubmitting } = useForgotPin();
-      (AuthService.resetPin as any).mockResolvedValue({});
+      vi.mocked(AuthService.resetPin).mockResolvedValue({});
 
       await executeReset(payload);
 
@@ -257,7 +250,7 @@ describe('useForgotPin - Professional QA Test Suite', () => {
       const { executeReset, errorMessage } = useForgotPin();
       
       errorMessage.value = 'Error lama';
-      (AuthService.resetPin as any).mockResolvedValue({});
+      vi.mocked(AuthService.resetPin).mockResolvedValue({});
 
       await executeReset(payload);
 

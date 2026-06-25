@@ -24,7 +24,7 @@ class AssistanceSubmissionFactory extends Factory
             'village_id' => '6301012001',
             'status' => 'pending',
             'submission_data' => ['pertanyaan_1' => 'jawaban_1'],
-            'saw_score' => 0.0,
+            'smart_score' => 0.0,
             'disbursement_method' => 'village_cash',
             'needs_data_update' => false,
         ];
